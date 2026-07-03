@@ -1,6 +1,6 @@
 /* Metroviolencia · frontend (valencià) — trens animats sobre la via */
 const API = "";
-const REFRESH_MS = 15000;   // sondeig del backend (el poller fa pull cada 60 s)
+const REFRESH_MS = 60000;   // el client demana a la Raspa cada minut (la Raspa mira Metrovalencia cada 5 min)
 const ANIM_MS = 500;        // pas d'animació dels punts
 
 const NOMBRES_LINEA = {
