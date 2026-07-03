@@ -399,8 +399,9 @@ function animar() {
     if (d == null) continue;
     e.marker.setLatLng(distToLatLng(t.linea, d) || [t.lat, t.lng]);
 
-    // en marxa segons la velocitat del tram actiu (estable, sense parpelleig)
-    const movent = velTren(t) > 1.5;
+    // punt NOMÉS quan és un tren esperant en la seua capçalera d'origen;
+    // qualsevol tren en trànsit (encara que arribe a una terminal) va amb fletxa
+    const movent = !(t.origen && velTren(t) < 2);
     const el = e.marker.getElement();
     if (el) {
       const dot = el.querySelector(".tren-dot");
@@ -434,7 +435,7 @@ async function obrirPopupEstacio(m) {
     `<div class="pop-arr">carregant…</div>`;
   L.popup({ maxWidth: 300, minWidth: 230 }).setLatLng(m.getLatLng()).setContent(cont).openOn(map);
   if (Date.now() / 1000 - arrivalsCache.ts > 20) {
-    try { arrivalsCache = await (await fetch(API + "api/arrivals")).json(); } catch (e) {}
+    try { arrivalsCache = await (await fetch(API + "api/arrivals?_=" + Date.now(), { cache: "no-store" })).json(); } catch (e) {}
   }
   pintarLlegadesPopup(cont.querySelector(".pop-arr"), m.estId);
 }
@@ -467,7 +468,7 @@ function pintarNoinfo() {
 
 async function refrescar() {
   try {
-    const data = await (await fetch(API + "api/trains")).json();
+    const data = await (await fetch(API + "api/trains?_=" + Date.now(), { cache: "no-store" })).json();
     ultimoTrenes = data.trenes || [];
     ultimoTs = data.ts || Math.floor(Date.now() / 1000);
     noinfo = data.noinfo || [];

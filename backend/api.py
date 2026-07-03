@@ -63,18 +63,22 @@ async def auth_token(request: Request, call_next):
     secreto obligatorio: sin él, aun con IP/puerto, la web no responde (403).
     La APK abre .../?token=XXX una vez; se fija la cookie y el resto de
     peticiones (app.js, /api/...) van autenticadas."""
-    if _is_lan(_client_ip(request)):
-        return await call_next(request)   # LAN: acceso libre
-
-    token = _token()
     q = request.query_params.get("token")
-    ok = bool(token) and (q == token or request.cookies.get("mvtoken") == token)
-    if not ok:
-        return JSONResponse({"error": "forbidden"}, status_code=403)
-    resp = await call_next(request)
-    if q == token:   # primer acceso externo con token en la URL: fija cookie
-        resp.set_cookie("mvtoken", token, max_age=31536000,
-                        path="/metroviolencia", httponly=True, samesite="lax")
+    if _is_lan(_client_ip(request)):
+        resp = await call_next(request)   # LAN: acceso libre
+    else:
+        token = _token()
+        ok = bool(token) and (q == token or request.cookies.get("mvtoken") == token)
+        if not ok:
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+        resp = await call_next(request)
+        if q == token:   # primer acceso externo con token en la URL: fija cookie
+            resp.set_cookie("mvtoken", token, max_age=31536000,
+                            path="/metroviolencia", httponly=True, samesite="lax")
+    # nunca cachear los datos en vivo (el cliente debe recibir cada snapshot nuevo)
+    if request.url.path.startswith("/api/"):
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
     return resp
 
 
