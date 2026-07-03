@@ -1,0 +1,15 @@
+[Unit]
+Description=Metroviolencia · poller de llegadas de Metrovalencia
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=roca
+WorkingDirectory=/home/roca/Metroviolencia
+ExecStart=/home/roca/Metroviolencia/.venv/bin/python -m backend.poller --interval 30
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

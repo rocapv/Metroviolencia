@@ -1,0 +1,11 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# datos generados
+data/*.db
+data/*.raw.html
+data/sample-*.json
+
+# se conserva data/network.json (geometría derivada, necesaria en runtime)

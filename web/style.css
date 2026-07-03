@@ -1,0 +1,121 @@
+:root {
+  --bg: #0d0d12;
+  --panel: rgba(18, 18, 26, 0.82);
+  --txt: #e8e8ef;
+  --muted: #9a9aac;
+  --viol: #c026d3;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--txt);
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+}
+
+/* HUD */
+#hud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px 16px;
+  max-width: 240px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.titulo {
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.titulo .viol { color: var(--viol); }
+
+.dot-live {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #35d07f;
+  box-shadow: 0 0 0 0 rgba(53, 208, 127, 0.7);
+  animation: pulse 1.8s infinite;
+}
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(53, 208, 127, 0.6); }
+  70%  { box-shadow: 0 0 0 10px rgba(53, 208, 127, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(53, 208, 127, 0); }
+}
+
+#stats {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+#stats b { color: var(--txt); }
+
+#leyenda {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  font-size: 11px;
+  font-weight: 700;
+  color: #000;
+  border-radius: 5px;
+  padding: 1px 7px;
+  cursor: pointer;
+  user-select: none;
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+.chip.off { opacity: 0.28; }
+
+#reloj {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 1000;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* trenes */
+.tren {
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 8px 1px rgba(0, 0, 0, 0.6);
+  transition: transform 0.4s ease;
+}
+
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: #16161f;
+  color: var(--txt);
+}
+.leaflet-popup-content { font-size: 13px; }
+.pop-linea {
+  display: inline-block; color: #000; font-weight: 800;
+  border-radius: 4px; padding: 0 6px; margin-right: 6px;
+}
