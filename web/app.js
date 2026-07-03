@@ -112,6 +112,20 @@ async function cargarRed() {
     addLayer(c.linea, L.polyline(c.path, { color: hex("#" + c.color), weight: 3.5,
       opacity: 0.85, lineJoin: "round" }).bindTooltip(`${c.a} – ${c.b}`, { sticky: true }));
   }
+  // trams SUBTERRANIS: casing blanc a ratlles damunt del color (efecte túnel)
+  for (const sub of net.subterraneos || []) {
+    const ways = (net.tram_tracks || {})[String(sub.linea)];
+    if (!ways) continue;
+    const merged = mergeWays(ways);
+    const a = porNom[sub.tramo[0]], b = porNom[sub.tramo[sub.tramo.length - 1]];
+    if (!merged.length || !a || !b) continue;
+    const slice = sliceLatLng(merged, [a.lat, a.lng], [b.lat, b.lng]);
+    if (slice.length >= 2) {
+      addLayer(sub.linea, L.polyline(slice, { color: "#e8e8ef", weight: 2,
+        opacity: 0.95, dashArray: "2 6", lineCap: "round" })
+        .bindTooltip(sub.nota || "tram subterrani", { sticky: true }));
+    }
+  }
 
   for (const e of net.estaciones) {
     const ret = estacionesRetorno.has(e.nombre);   // capçalera/retorn
@@ -133,6 +147,38 @@ async function cargarRed() {
   const lineas = Object.keys(colores).map(Number)
     .filter((n) => n >= 1 && n <= 10).sort((a, b) => a - b);
   construirLeyenda(lineas);
+}
+
+// uneix les ways d'un tramvia (OSM) en una polilínia contínua encadenant extrems
+function mergeWays(ways) {
+  if (!ways || !ways.length) return [];
+  const segs = ways.map((w) => w.slice());
+  const used = new Array(segs.length).fill(false);
+  const near = (a, b) => Math.hypot((a[0] - b[0]) * 111000, (a[1] - b[1]) * 85000) < 35;
+  let path = segs[0].slice(); used[0] = true;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let i = 0; i < segs.length; i++) {
+      if (used[i]) continue;
+      const s = segs[i], head = path[0], tail = path[path.length - 1];
+      if (near(tail, s[0])) { path = path.concat(s.slice(1)); used[i] = true; changed = true; }
+      else if (near(tail, s[s.length - 1])) { path = path.concat(s.slice().reverse().slice(1)); used[i] = true; changed = true; }
+      else if (near(head, s[s.length - 1])) { path = s.slice().concat(path.slice(1)); used[i] = true; changed = true; }
+      else if (near(head, s[0])) { path = s.slice().reverse().concat(path.slice(1)); used[i] = true; changed = true; }
+    }
+  }
+  return path;
+}
+// tros d'una polilínia entre els punts més pròxims a a i b
+function sliceLatLng(path, a, b) {
+  const d = (p, q) => Math.hypot((p[0] - q[0]) * 111000, (p[1] - q[1]) * 85000);
+  let ia = 0, ib = 0, da = Infinity, db = Infinity;
+  path.forEach((p, i) => {
+    const x = d(p, a); if (x < da) { da = x; ia = i; }
+    const y = d(p, b); if (y < db) { db = y; ib = i; }
+  });
+  return path.slice(Math.min(ia, ib), Math.max(ia, ib) + 1);
 }
 
 // retalla la via d'una línia excloent els rangs [d0,d1] tancats -> trossos
@@ -296,17 +342,18 @@ function pintarTrenes(trenes) {
 
 function iconoTren(t) {
   const c = "#" + (t.color || "888");
-  // punt (parat en capçalera/retorn) + fletxa (en marxa, girada al rumb)
+  // punt (parat en capçalera/retorn) + fletxa (en marxa, girada al rumb).
+  // Tots dos amb vora blanca per a ressaltar sobre la via.
   return L.divIcon({
     className: "",
     html:
       `<div class="tren-wrap">` +
       `<span class="tren-dot" style="background:${c}"></span>` +
-      `<svg class="tren-arrow" viewBox="0 0 24 24" width="20" height="20" style="fill:${c}">` +
-      `<path d="M3 12 L21 12 M21 12 L14 6 M21 12 L14 18" stroke="${c}" stroke-width="3.5" ` +
-      `fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>` +
+      `<svg class="tren-arrow" viewBox="0 0 24 24" width="22" height="22">` +
+      `<path d="M21 12 L6 4 L11 12 L6 20 Z" fill="${c}" stroke="#fff" ` +
+      `stroke-width="1.7" stroke-linejoin="round"/></svg>` +
       `</div>`,
-    iconSize: [20, 20], iconAnchor: [10, 10],
+    iconSize: [22, 22], iconAnchor: [11, 11],
   });
 }
 
@@ -375,11 +422,16 @@ function animar() {
 
 /* ---------- popup d'estació ---------- */
 async function obrirPopupEstacio(m) {
+  const chips = m.estLineas
+    .map((l) => `<span class="pop-linea" style="background:#${colores[l] || "888"}">${NOMBRES_LINEA[l] || "L" + l}</span>`)
+    .join("");
   const cont = document.createElement("div");
-  cont.innerHTML = `<b>${m.estNom}</b><br>
-    <span style="color:#9a9aac">línies ${m.estLineas.join(", ")}</span>
-    <div class="pop-arr" style="margin-top:8px">carregant…</div>`;
-  L.popup({ maxWidth: 260 }).setLatLng(m.getLatLng()).setContent(cont).openOn(map);
+  cont.innerHTML =
+    `<div class="pop-est-nom">${m.estNom}</div>` +
+    `<div class="pop-est-lin">${chips}</div>` +
+    `<div class="pop-arr-tit">Pròximes arribades</div>` +
+    `<div class="pop-arr">carregant…</div>`;
+  L.popup({ maxWidth: 300, minWidth: 230 }).setLatLng(m.getLatLng()).setContent(cont).openOn(map);
   if (Date.now() / 1000 - arrivalsCache.ts > 20) {
     try { arrivalsCache = await (await fetch(API + "api/arrivals")).json(); } catch (e) {}
   }
@@ -389,14 +441,15 @@ async function obrirPopupEstacio(m) {
 function pintarLlegadesPopup(el, estId) {
   const arr = (arrivalsCache.estaciones || {})[estId] || [];
   const passat = Math.max(0, Math.floor(Date.now() / 1000) - (arrivalsCache.ts || 0));
-  if (!arr.length) { el.innerHTML = "<i style='color:#9a9aac'>sense pròximes arribades</i>"; return; }
+  if (!arr.length) { el.innerHTML = "<div class='pop-buida'>sense pròximes arribades</div>"; return; }
   el.innerHTML = arr.slice(0, 6).map((a) => {
     const c = "#" + (colores[a.linea] || "888");
     const eta = Math.max(0, a.eta_seg - passat);
+    const cls = eta <= 30 ? "arr-eta imminent" : "arr-eta";
     return `<div class="arr-row">
       <span class="pop-linea" style="background:${c}">${NOMBRES_LINEA[a.linea] || "L" + a.linea}</span>
-      <span class="arr-dest">${a.destino}</span>
-      <span class="arr-eta" data-eta="${a.eta_seg}">${fmtEta(eta)}</span></div>`;
+      <span class="arr-dest">→ ${a.destino}</span>
+      <span class="${cls}" data-eta="${a.eta_seg}">${fmtEta(eta)}</span></div>`;
   }).join("");
 }
 

@@ -6,6 +6,13 @@
     "Alameda"
   ],
   "_nota_retorno": "Estaciones intermedias donde los trenes pueden terminar, descansar e invertir el sentido. València Sud es además depósito. Los finales de línea también son cabeceras.",
+  "subterraneos": [
+    {
+      "linea": 10,
+      "tramo": ["Alacant", "Russafa", "Amado Granell - Montolivet"],
+      "nota": "L10 en túnel (Alacant–Montolivet); el resto es superficie"
+    }
+  ],
   "cierres": [
     {
       "id": "alameda-maritim-2026",

@@ -318,6 +318,9 @@ class Network:
     def cierres(self) -> list[dict]:
         return self._service().get("cierres", [])
 
+    def subterraneos(self) -> list[dict]:
+        return self._service().get("subterraneos", [])
+
     def estaciones_retorno(self) -> list[str]:
         """Cabeceras intermedias + finales de línea donde los trenes descansan
         e invierten el sentido."""
@@ -336,6 +339,7 @@ class Network:
             # tranvías: la fuente no da tiempo real -> siempre "sense info"
             "sin_tiempo_real": [4, 6, 8],
             "cierres": self.cierres(),
+            "subterraneos": self.subterraneos(),
             "estaciones_retorno": self.estaciones_retorno(),
             "conectores": self.conectores(),
             "tram_tracks": self.tram_tracks(),

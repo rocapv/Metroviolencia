@@ -135,9 +135,12 @@ html, body {
 /* moviment suau entre passos d'animació (posició, no rotació) */
 .leaflet-marker-icon { transition: transform 0.5s linear; }
 
-/* tram tallat: puntejat gris amb marxa suau (marching ants) */
-.cierre-anim { animation: marchant 2.6s linear infinite; }
-@keyframes marchant { to { stroke-dashoffset: -24; } }
+/* tram tallat: puntejat gris que va i ve (oscil·la ~1s) */
+.cierre-anim { animation: marchant 1s ease-in-out infinite alternate; }
+@keyframes marchant {
+  from { stroke-dashoffset: 12; }
+  to   { stroke-dashoffset: -12; }
+}
 
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
   background: #16161f;
@@ -148,9 +151,20 @@ html, body {
   display: inline-block; color: #000; font-weight: 800;
   border-radius: 4px; padding: 0 6px; margin-right: 6px;
 }
-.arr-row {
-  display: flex; align-items: center; gap: 6px;
-  padding: 3px 0; border-top: 1px solid rgba(255,255,255,0.06);
+.pop-est-nom { font-size: 17px; font-weight: 800; color: var(--txt); line-height: 1.15; }
+.pop-est-lin { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 10px; }
+.pop-arr-tit {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: #8a8a98; margin-bottom: 4px; font-weight: 700;
 }
-.arr-dest { flex: 1; }
-.arr-eta { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pop-buida { color: #9a9aac; font-style: italic; padding: 4px 0; }
+.arr-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.08);
+}
+.arr-dest { flex: 1; color: var(--txt); font-size: 13px; }
+.arr-eta {
+  font-weight: 800; font-size: 15px; color: #fff;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.arr-eta.imminent { color: #35d07f; }
