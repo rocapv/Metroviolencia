@@ -135,6 +135,10 @@ html, body {
 /* moviment suau entre passos d'animació (posició, no rotació) */
 .leaflet-marker-icon { transition: transform 0.5s linear; }
 
+/* tram tallat: puntejat gris amb marxa suau (marching ants) */
+.cierre-anim { animation: marchant 2.6s linear infinite; }
+@keyframes marchant { to { stroke-dashoffset: -24; } }
+
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
   background: #16161f;
   color: var(--txt);

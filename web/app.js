@@ -27,6 +27,8 @@ let ultimoTs = 0;
 let noinfo = [];                   // línies metro sense info ara mateix (tall de font)
 let sinTiempoReal = [];            // trams sense temps real (sempre)
 let estacionesRetorno = new Set(); // capçaleres/retorns on els trens descansen
+let lineLayers = {};               // lid -> [capes de via/connectors] per al toggle
+let porNomGlobal = {};             // nom estació -> objecte estació
 let arrivalsCache = { ts: 0, estaciones: {} };
 
 const hex = (c) => (c && c.startsWith("#") ? c : "#" + (c || "888"));
@@ -65,32 +67,53 @@ async function cargarRed() {
   sinTiempoReal = net.sin_tiempo_real || [];
   estacionesRetorno = new Set(net.estaciones_retorno || []);
 
-  // traçats de METRO: només els segments de metro (els del tramvia venen d'OSM;
-  // dibuixar-los tots dos duplicava carrils entre parades)
-  const metroSegs = new Set((net.metro_segs || []).map(String));
-  for (const [seg, info] of Object.entries(net.lineas)) {
-    if (!metroSegs.has(String(seg)) || !info.path || info.path.length < 2) continue;
-    L.polyline(info.path, { color: hex("#" + info.color), weight: 3.5,
-      opacity: 0.85, lineJoin: "round" }).addTo(map);
-  }
-  // traçat real dels tramvies (L4/L6/L8/L10) des d'OSM, en color comercial
-  for (const [ref, ways] of Object.entries(net.tram_tracks || {})) {
-    const col = hex("#" + (colores[ref] || "888"));
-    for (const w of ways) {
-      L.polyline(w, { color: col, weight: 3.5, opacity: 0.9, lineJoin: "round" })
-        .addTo(map);
+  const porNom = {};
+  for (const e of net.estaciones) porNom[e.nombre] = e;
+  porNomGlobal = porNom;
+  lineLayers = {};
+  const addLayer = (lid, layer) => {
+    (lineLayers[lid] = lineLayers[lid] || []).push(layer);
+    layer.addTo(map);
+  };
+
+  // trams tallats per línia (d0,d1 sobre la seua via) -> per retallar L5/L7
+  const closedRanges = {};
+  for (const c of net.cierres || []) {
+    for (const lid of c.lineas || []) {
+      const lc = comerciales[String(lid)];
+      if (!lc) continue;
+      const idA = porNom[c.tramo[0]]?.id, idB = porNom[c.tramo[c.tramo.length - 1]]?.id;
+      const eA = lc.estaciones.find((e) => e.id === idA);
+      const eB = lc.estaciones.find((e) => e.id === idB);
+      if (!eA || !eB) continue;
+      (closedRanges[lid] = closedRanges[lid] || [])
+        .push([Math.min(eA.d, eB.d), Math.max(eA.d, eB.d)]);
     }
   }
-  // connectors: trams de via que falten en les polylines de metro
+
+  // METRO: dibuixa la via comercial, RETALLANT els trams tallats (no es veu L5/L7
+  // entre Alameda i Marítim; allà només el punteado gris animat)
+  for (const [lid, lc] of Object.entries(comerciales)) {
+    if (String(lid) in (net.tram_tracks || {})) continue;   // trams a part
+    const col = hex("#" + lc.color);
+    for (const piece of clipPath(lid, closedRanges[lid] || [])) {
+      addLayer(Number(lid), L.polyline(piece, { color: col, weight: 3.5,
+        opacity: 0.85, lineJoin: "round" }));
+    }
+  }
+  // TRAMVIES des d'OSM, en color comercial
+  for (const [ref, ways] of Object.entries(net.tram_tracks || {})) {
+    const col = hex("#" + (colores[ref] || "888"));
+    for (const w of ways) addLayer(Number(ref),
+      L.polyline(w, { color: col, weight: 3.5, opacity: 0.9, lineJoin: "round" }));
+  }
+  // connectors de metro
   for (const c of net.conectores || []) {
-    L.polyline(c.path, { color: hex("#" + c.color), weight: 3.5, opacity: 0.85,
-      lineJoin: "round" }).addTo(map)
-      .bindTooltip(`${c.a} – ${c.b}`, { sticky: true });
+    addLayer(c.linea, L.polyline(c.path, { color: hex("#" + c.color), weight: 3.5,
+      opacity: 0.85, lineJoin: "round" }).bindTooltip(`${c.a} – ${c.b}`, { sticky: true }));
   }
 
-  const porNom = {};
   for (const e of net.estaciones) {
-    porNom[e.nombre] = e;
     const ret = estacionesRetorno.has(e.nombre);   // capçalera/retorn
     const m = L.circleMarker([e.lat, e.lng], {
       radius: ret ? 5 : 3.2,
@@ -110,6 +133,31 @@ async function cargarRed() {
   const lineas = Object.keys(colores).map(Number)
     .filter((n) => n >= 1 && n <= 10).sort((a, b) => a - b);
   construirLeyenda(lineas);
+}
+
+// retalla la via d'una línia excloent els rangs [d0,d1] tancats -> trossos
+function clipPath(lid, ranges) {
+  const lc = comerciales[String(lid)];
+  if (!lc || !lc.cum) return [];
+  if (!ranges.length) return [lc.path];
+  const cuts = [...ranges].sort((a, b) => a[0] - b[0]);
+  const total = lc.cum[lc.cum.length - 1];
+  const pieces = [];
+  let cur = 0;
+  for (const [a, b] of cuts) {
+    if (a > cur) pieces.push(sliceByD(lid, cur, a));
+    cur = Math.max(cur, b);
+  }
+  if (cur < total) pieces.push(sliceByD(lid, cur, total));
+  return pieces.filter((p) => p && p.length >= 2);
+}
+function sliceByD(lid, d0, d1) {
+  const lc = comerciales[String(lid)];
+  const out = [distToLatLng(lid, d0)];
+  for (let i = 0; i < lc.cum.length; i++)
+    if (lc.cum[i] > d0 && lc.cum[i] < d1) out.push(lc.path[i]);
+  out.push(distToLatLng(lid, d1));
+  return out.filter(Boolean);
 }
 
 // sub-traçat d'una línia comercial entre dues estacions (segueix la via real)
@@ -140,8 +188,8 @@ function dibuixarCierres(cierres, porNom) {
     }
     if (!pts) pts = (c.tramo || []).map((n) => porNom[n]).filter(Boolean).map((e) => [e.lat, e.lng]);
     if (pts && pts.length >= 2) {
-      L.polyline(pts, { color: "#8a8a96", weight: 6, opacity: 0.95,
-        dashArray: "1 10", lineCap: "round" }).addTo(map)
+      L.polyline(pts, { color: "#9a9aa8", weight: 6, opacity: 0.95,
+        dashArray: "1 11", lineCap: "round", className: "cierre-anim" }).addTo(map)
         .bindTooltip(c.nota || "Tram tallat", { sticky: true });
       for (const n of c.tramo || []) {
         const e = porNom[n];
@@ -169,8 +217,14 @@ function construirLeyenda(lineas) {
     chip.style.background = "#" + (colores[l] || "888");
     chip.title = "";
     chip.onclick = () => {
-      if (lineasVisibles.has(l)) { lineasVisibles.delete(l); chip.classList.add("off"); }
-      else { lineasVisibles.add(l); chip.classList.remove("off"); }
+      const capes = lineLayers[l] || [];
+      if (lineasVisibles.has(l)) {
+        lineasVisibles.delete(l); chip.classList.add("off");
+        capes.forEach((x) => map.removeLayer(x));          // amaga la via també
+      } else {
+        lineasVisibles.add(l); chip.classList.remove("off");
+        capes.forEach((x) => x.addTo(map));
+      }
       pintarTrenes(ultimoTrenes);
     };
     chipsPorLinea[l] = chip;
