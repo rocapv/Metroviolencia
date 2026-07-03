@@ -75,10 +75,10 @@ async def auth_token(request: Request, call_next):
         if q == token:   # primer acceso externo con token en la URL: fija cookie
             resp.set_cookie("mvtoken", token, max_age=31536000,
                             path="/metroviolencia", httponly=True, samesite="lax")
-    # nunca cachear los datos en vivo (el cliente debe recibir cada snapshot nuevo)
-    if request.url.path.startswith("/api/"):
-        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-        resp.headers["Pragma"] = "no-cache"
+    # nunca cachear: ni los datos en vivo ni el frontend (evita snapshots viejos
+    # y que el WebView sirva un app.js antiguo). Robusto ante root_path del proxy.
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
     return resp
 
 
