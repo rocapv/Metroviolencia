@@ -69,7 +69,15 @@ async function cargarRed() {
     L.polyline(info.path, { color: hex("#" + info.color), weight: 3.5,
       opacity: 0.85, lineJoin: "round" }).addTo(map);
   }
-  // connectors: trams de via que falten en les polylines (p. ex. À Punt–Ll. Llarga)
+  // traçat real dels tramvies (L4/L6/L8/L10) des d'OSM, en color comercial
+  for (const [ref, ways] of Object.entries(net.tram_tracks || {})) {
+    const col = hex("#" + (colores[ref] || "888"));
+    for (const w of ways) {
+      L.polyline(w, { color: col, weight: 3.5, opacity: 0.9, lineJoin: "round" })
+        .addTo(map);
+    }
+  }
+  // connectors: trams de via que falten en les polylines de metro
   for (const c of net.conectores || []) {
     L.polyline(c.path, { color: hex("#" + c.color), weight: 3.5, opacity: 0.85,
       lineJoin: "round" }).addTo(map)

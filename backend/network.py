@@ -17,6 +17,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 NETWORK_JSON = ROOT / "data" / "network.json"
 SERVICE_JSON = ROOT / "data" / "service.json"
+# Trazado real de las líneas de tranvía (L4/L6/L8/L10) desde OpenStreetMap
+# (railway=tram). Metrovalencia no da polylines limpias de tranvía. Generado con
+# scripts/fetch_tram_tracks.py.
+TRAM_TRACKS_JSON = ROOT / "data" / "tram_tracks.json"
 
 _R = 6371000.0  # radio terrestre m
 _LAT0 = math.radians(39.47)  # latitud de referencia (Valencia) para el coseno
@@ -239,10 +243,19 @@ class Network:
         ln = self.lineas[lid]
         return [self.estaciones[s].nombre for _, s in ln.orden]
 
+    def tram_tracks(self) -> dict[str, list]:
+        if not TRAM_TRACKS_JSON.exists():
+            return {}
+        try:
+            return json.loads(TRAM_TRACKS_JSON.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return {}
+
     def conectores(self) -> list[dict]:
         """Enlaces de vía que faltan en las polylines: entre estaciones vecinas
-        de una misma línea comercial cuyo punto medio queda lejos de toda vía
-        (p. ej. À Punt–Ll. Llarga). Se dibujan para no dejar huecos."""
+        de una misma línea comercial cuyo punto medio queda lejos de toda vía.
+        Se omiten las líneas de tranvía (su trazado real viene de OSM)."""
+        con_tram = set(int(k) for k in self.tram_tracks())
         # todos los segmentos de polyline en XY
         segs = []
         for ln in self.lineas.values():
@@ -267,6 +280,8 @@ class Network:
         vistos: set[frozenset] = set()
         out: list[dict] = []
         for lid, sids in por_linea.items():
+            if lid in con_tram:
+                continue  # el trazado de tranvía lo aporta OSM
             color = self.colores_comercial.get(str(lid), "888888")
             for s in sids:
                 p = self._xy_of(s)
@@ -309,6 +324,7 @@ class Network:
             "sin_tiempo_real": [4, 6, 8],
             "cierres": self.cierres(),
             "conectores": self.conectores(),
+            "tram_tracks": self.tram_tracks(),
             "comerciales": {
                 str(lid): {
                     "color": lc.color,
