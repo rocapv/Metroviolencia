@@ -7,39 +7,42 @@ import android.content.SharedPreferences;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
 import android.graphics.drawable.Icon;
-import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
-import android.webkit.ValueCallback;
-import android.webkit.SslErrorHandler;
 import android.webkit.WebView;
 import android.webkit.WebSettings;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebViewClient;
+import android.webkit.ValueCallback;
 
-// APK-quiosc: obri el mapa de Metroviolencia amb el token embegut.
-// Prova primer la LAN; si falla (fora de casa) salta a l'adreça externa.
-// __URL_LAN__ i __URL_EXT__ se substitueixen en build.
+// APK-quiosc del mapa de Metroviolencia (token embegut). Prova les adreces en
+// ordre fins que una carrega el mapa: LAN -> HTTPS (port dedicat) -> HTTP (5580).
+// El cert autofirmat de home.pr1.es va empaquetat (network_security_config), així
+// que HTTPS no dóna error al Huawei. Les __...__ se substitueixen en build.
 public class MainActivity extends Activity {
 
-    private static final String URL_LAN = "__URL_LAN__";
-    private static final String URL_EXT = "__URL_EXT__";
-    private static final String HOST_EXT = "__HOST_EXT__";
+    private final String[] URLS = { "__URL_LAN__", "__URL_EXT_HTTPS__", "__URL_EXT_HTTP__" };
+    private static final int TIMEOUT_MS = 4500;
 
     private WebView web;
-    private boolean triedExt = false;   // ja hem passat a l'adreça externa
-    private boolean ok = false;         // el mapa s'ha carregat de veritat
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private int idx = -1;
+    private boolean ok = false;
 
-    private void anarExtern() {
-        if (!triedExt) {
-            triedExt = true;
-            web.loadUrl(URL_EXT);
-        }
+    private void carrega(int i) {
+        if (ok || i >= URLS.length) return;
+        idx = i;
+        web.loadUrl(URLS[i]);
+        final int meu = i;
+        handler.postDelayed(new Runnable() {
+            @Override public void run() {
+                if (!ok && idx == meu) carrega(meu + 1);   // s'ha penjat -> següent
+            }
+        }, TIMEOUT_MS);
     }
 
     @Override
@@ -55,43 +58,30 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView v, String url) {
-                // comprova que s'ha carregat el mapa (no una pàgina d'error/en blanc);
-                // si no, passa a l'adreça externa
+                // s'ha carregat el mapa de veritat? si no, prova la següent adreça
                 v.evaluateJavascript("(!!document.getElementById('map'))+''",
                     new ValueCallback<String>() {
                         @Override public void onReceiveValue(String value) {
                             if ("true".equals(value)) { ok = true; }
-                            else { anarExtern(); }
+                            else { carrega(idx + 1); }
                         }
                     });
             }
 
             @Override
             public void onReceivedError(WebView v, WebResourceRequest req, WebResourceError err) {
-                if (req.isForMainFrame() && !ok) { anarExtern(); }
-            }
-
-            @Override
-            public void onReceivedSslError(WebView v, SslErrorHandler h, SslError error) {
-                // el cert de home.pr1.es és autofirmat: accepta'l NOMÉS per a eixe host
-                String u = error.getUrl();
-                if (u != null && u.contains(HOST_EXT)) { h.proceed(); } else { h.cancel(); }
+                if (req.isForMainFrame() && !ok) carrega(idx + 1);
             }
         });
 
         setContentView(web);
         if (savedInstanceState == null) {
-            web.loadUrl(URL_LAN);
-            // si la LAN es penja (SYN_SENT, fora de casa) i no carrega en 5 s -> externa
-            handler.postDelayed(new Runnable() {
-                @Override public void run() { if (!ok) anarExtern(); }
-            }, 5000);
+            carrega(0);
         }
         demanarIconaEscriptori();
     }
 
-    // EMUI (Huawei) no col·loca la icona a l'escriptori en instal·lar per adb;
-    // demanem fixar-la (pinned shortcut). Només una vegada.
+    // EMUI no col·loca la icona a l'escriptori en instal·lar per adb: la demanem.
     private void demanarIconaEscriptori() {
         if (Build.VERSION.SDK_INT < 26) return;
         SharedPreferences pref = getSharedPreferences("mv", Context.MODE_PRIVATE);

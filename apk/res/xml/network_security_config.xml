@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- HTTP permitido (LAN 192.168.1.100 y externo 5580) -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- home.pr1.es: confía en el cert autofirmado empaquetado (sin error de HTTPS) -->
+    <domain-config>
+        <domain includeSubdomains="true">home.pr1.es</domain>
+        <trust-anchors>
+            <certificates src="@raw/homecert" />
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

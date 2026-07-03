@@ -16,18 +16,19 @@ PY="$HERE/../.venv/Scripts/python.exe"
 TOKEN="${1:-${METRO_TOKEN:-}}"
 [ -z "$TOKEN" ] && [ -f ../data/token.txt ] && TOKEN="$(cat ../data/token.txt)"
 [ -z "$TOKEN" ] && { echo "Falta token (arg1, METRO_TOKEN o ../data/token.txt)"; exit 1; }
-BASE_LAN="${BASE_LAN:-http://192.168.1.100/metroviolencia/}"        # dins de la LAN
-HOST_EXT="${HOST_EXT:-home.pr1.es}"
-BASE_EXT="${BASE_EXT:-http://home.pr1.es:5580/metroviolencia/}"     # fora de la LAN (port reenviat pel router)
+BASE_LAN="${BASE_LAN:-http://192.168.1.100/metroviolencia/}"             # dins de la LAN
+BASE_EXT_HTTPS="${BASE_EXT_HTTPS:-https://home.pr1.es:8751/metroviolencia/}"  # extern HTTPS (port dedicat)
+BASE_EXT_HTTP="${BASE_EXT_HTTP:-http://home.pr1.es:5580/metroviolencia/}"     # extern HTTP (port ja reenviat)
 URL_LAN="${BASE_LAN}?token=${TOKEN}"
-URL_EXT="${BASE_EXT}?token=${TOKEN}"
+URL_EXT_HTTPS="${BASE_EXT_HTTPS}?token=${TOKEN}"
+URL_EXT_HTTP="${BASE_EXT_HTTP}?token=${TOKEN}"
 
 OUT=build
 rm -rf "$OUT"; mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/src/com/mdk/metroviolencia"
 
-echo "[0/8] MainActivity.java (token + LAN/externa embebidos)"
-sed -e "s|__URL_LAN__|${URL_LAN}|g" -e "s|__URL_EXT__|${URL_EXT}|g" \
-    -e "s|__HOST_EXT__|${HOST_EXT}|g" MainActivity.java.tmpl \
+echo "[0/8] MainActivity.java (token + adreces LAN/HTTPS/HTTP embegudes)"
+sed -e "s|__URL_LAN__|${URL_LAN}|g" -e "s|__URL_EXT_HTTPS__|${URL_EXT_HTTPS}|g" \
+    -e "s|__URL_EXT_HTTP__|${URL_EXT_HTTP}|g" MainActivity.java.tmpl \
     > "$OUT/src/com/mdk/metroviolencia/MainActivity.java"
 
 echo "[1/8] aapt2 compile recursos"
