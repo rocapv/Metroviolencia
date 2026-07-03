@@ -1,7 +1,14 @@
 package com.mdk.metroviolencia;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ShortcutInfo;
+import android.content.pm.ShortcutManager;
+import android.graphics.drawable.Icon;
 import android.net.http.SslError;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.webkit.SslErrorHandler;
@@ -64,6 +71,27 @@ public class MainActivity extends Activity {
         setContentView(web);
         if (savedInstanceState == null) {
             web.loadUrl(URL_LAN);
+        }
+        demanarIconaEscriptori();
+    }
+
+    // EMUI (Huawei) no col·loca la icona a l'escriptori en instal·lar per adb;
+    // demanem fixar-la (pinned shortcut). Només una vegada.
+    private void demanarIconaEscriptori() {
+        if (Build.VERSION.SDK_INT < 26) return;
+        SharedPreferences pref = getSharedPreferences("mv", Context.MODE_PRIVATE);
+        if (pref.getBoolean("icona_demanada", false)) return;
+        ShortcutManager sm = getSystemService(ShortcutManager.class);
+        if (sm == null || !sm.isRequestPinShortcutSupported()) return;
+        Intent obrir = new Intent(this, MainActivity.class);
+        obrir.setAction(Intent.ACTION_MAIN);
+        ShortcutInfo info = new ShortcutInfo.Builder(this, "metroviolencia")
+                .setShortLabel("Metroviolencia")
+                .setIcon(Icon.createWithResource(this, R.mipmap.ic_launcher))
+                .setIntent(obrir)
+                .build();
+        if (sm.requestPinShortcut(info, null)) {
+            pref.edit().putBoolean("icona_demanada", true).apply();
         }
     }
 
