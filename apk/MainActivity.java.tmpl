@@ -10,7 +10,10 @@ import android.graphics.drawable.Icon;
 import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.KeyEvent;
+import android.webkit.ValueCallback;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebView;
 import android.webkit.WebSettings;
@@ -28,8 +31,16 @@ public class MainActivity extends Activity {
     private static final String HOST_EXT = "__HOST_EXT__";
 
     private WebView web;
-    private boolean triedExt = false;
-    private boolean loaded = false;
+    private boolean triedExt = false;   // ja hem passat a l'adreça externa
+    private boolean ok = false;         // el mapa s'ha carregat de veritat
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    private void anarExtern() {
+        if (!triedExt) {
+            triedExt = true;
+            web.loadUrl(URL_EXT);
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,33 +55,37 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView v, String url) {
-                loaded = true;
+                // comprova que s'ha carregat el mapa (no una pàgina d'error/en blanc);
+                // si no, passa a l'adreça externa
+                v.evaluateJavascript("(!!document.getElementById('map'))+''",
+                    new ValueCallback<String>() {
+                        @Override public void onReceiveValue(String value) {
+                            if ("true".equals(value)) { ok = true; }
+                            else { anarExtern(); }
+                        }
+                    });
             }
 
             @Override
             public void onReceivedError(WebView v, WebResourceRequest req, WebResourceError err) {
-                // si falla la càrrega principal de la LAN, prova l'adreça externa
-                if (req.isForMainFrame() && !triedExt && !loaded) {
-                    triedExt = true;
-                    v.loadUrl(URL_EXT);
-                }
+                if (req.isForMainFrame() && !ok) { anarExtern(); }
             }
 
             @Override
-            public void onReceivedSslError(WebView v, SslErrorHandler handler, SslError error) {
+            public void onReceivedSslError(WebView v, SslErrorHandler h, SslError error) {
                 // el cert de home.pr1.es és autofirmat: accepta'l NOMÉS per a eixe host
                 String u = error.getUrl();
-                if (u != null && u.contains(HOST_EXT)) {
-                    handler.proceed();
-                } else {
-                    handler.cancel();
-                }
+                if (u != null && u.contains(HOST_EXT)) { h.proceed(); } else { h.cancel(); }
             }
         });
 
         setContentView(web);
         if (savedInstanceState == null) {
             web.loadUrl(URL_LAN);
+            // si la LAN es penja (SYN_SENT, fora de casa) i no carrega en 5 s -> externa
+            handler.postDelayed(new Runnable() {
+                @Override public void run() { if (!ok) anarExtern(); }
+            }, 5000);
         }
         demanarIconaEscriptori();
     }
