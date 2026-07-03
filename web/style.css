@@ -35,7 +35,28 @@ html, body {
   padding: 14px 16px;
   max-width: 240px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s ease;
 }
+/* panell colapsable a un lateral */
+#hud-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--txt);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+}
+#hud-toggle:hover { background: rgba(255, 255, 255, 0.14); }
+#hud-body { transition: opacity 0.2s ease; }
+#hud.collapsed { transform: translateX(calc(-100% + 34px)); }
+#hud.collapsed #hud-body { opacity: 0; pointer-events: none; }
 
 .titulo {
   font-weight: 800;

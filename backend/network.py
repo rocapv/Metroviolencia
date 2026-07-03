@@ -297,6 +297,14 @@ class Network:
                     key = frozenset((s, v))
                     if key in vistos:
                         continue
+                    # si ya están conectadas por el trazado de su línea (aunque
+                    # con curva), NO hace falta conector -> evita líneas de más
+                    # (p. ej. L3 Facultats–Benimaclet)
+                    lc = self.comerciales.get(lid)
+                    if lc:
+                        ds, dv = lc.station_dist(s), lc.station_dist(v)
+                        if ds is not None and dv is not None and d > 0 and abs(ds - dv) <= 2.5 * d:
+                            continue
                     mid = _xy((ea.lat + eb.lat) / 2, (ea.lng + eb.lng) / 2)
                     if lejos_de_via(mid):
                         vistos.add(key)

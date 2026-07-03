@@ -234,13 +234,14 @@ function dibuixarCierres(cierres, porNom) {
     }
     if (!pts) pts = (c.tramo || []).map((n) => porNom[n]).filter(Boolean).map((e) => [e.lat, e.lng]);
     if (pts && pts.length >= 2) {
-      L.polyline(pts, { color: "#9a9aa8", weight: 6, opacity: 0.95,
+      // gris fosc i subtil: prou per veure's però sense cridar l'atenció
+      L.polyline(pts, { color: "#33333c", weight: 5, opacity: 0.9,
         dashArray: "1 11", lineCap: "round", className: "cierre-anim" }).addTo(map)
         .bindTooltip(c.nota || "Tram tallat", { sticky: true });
       for (const n of c.tramo || []) {
         const e = porNom[n];
-        if (e) L.circleMarker([e.lat, e.lng], { radius: 4.5, color: "#8a8a96",
-          weight: 2.5, fillColor: "#1a1a22", fillOpacity: 1 }).addTo(map)
+        if (e) L.circleMarker([e.lat, e.lng], { radius: 4, color: "#3a3a44",
+          weight: 2, fillColor: "#15151b", fillOpacity: 1 }).addTo(map)
           .bindTooltip(`${n} · tancada`, { direction: "top" });
       }
     }
@@ -489,6 +490,19 @@ function tickSegon() {
     arrEls.forEach((el) => { el.textContent = fmtEta(Math.max(0, parseInt(el.dataset.eta, 10) - passat)); });
   }
 }
+
+// panell colapsable a un lateral
+(function () {
+  const hud = document.getElementById("hud");
+  const btn = document.getElementById("hud-toggle");
+  if (btn && hud) {
+    btn.addEventListener("click", () => {
+      const col = hud.classList.toggle("collapsed");
+      btn.textContent = col ? "»" : "«";
+      btn.setAttribute("aria-label", col ? "Mostra el panell" : "Amaga el panell");
+    });
+  }
+})();
 
 (async function main() {
   await cargarRed();
