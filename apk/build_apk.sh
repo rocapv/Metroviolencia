@@ -16,9 +16,9 @@ PY="$HERE/../.venv/Scripts/python.exe"
 TOKEN="${1:-${METRO_TOKEN:-}}"
 [ -z "$TOKEN" ] && [ -f ../data/token.txt ] && TOKEN="$(cat ../data/token.txt)"
 [ -z "$TOKEN" ] && { echo "Falta token (arg1, METRO_TOKEN o ../data/token.txt)"; exit 1; }
-BASE_LAN="${BASE_LAN:-http://192.168.1.100/metroviolencia/}"     # dins de la LAN
+BASE_LAN="${BASE_LAN:-http://192.168.1.100/metroviolencia/}"        # dins de la LAN
 HOST_EXT="${HOST_EXT:-home.pr1.es}"
-BASE_EXT="${BASE_EXT:-https://home.pr1.es:8751/metroviolencia/}"  # fora de la LAN
+BASE_EXT="${BASE_EXT:-http://home.pr1.es:5580/metroviolencia/}"     # fora de la LAN (port reenviat pel router)
 URL_LAN="${BASE_LAN}?token=${TOKEN}"
 URL_EXT="${BASE_EXT}?token=${TOKEN}"
 
