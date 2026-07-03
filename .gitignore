@@ -12,3 +12,6 @@ data/sample-*.json
 
 data/*.db-journal
 data/*.db-wal
+
+# secreto: token de acceso
+data/token.txt

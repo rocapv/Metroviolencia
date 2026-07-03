@@ -11,11 +11,12 @@ Sirve además el frontend estático de ../web en la raíz.
 """
 from __future__ import annotations
 
+import os
 import sqlite3
 import time
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -25,8 +26,35 @@ from .positions import estimar
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "data" / "metro.db"
 WEB = ROOT / "web"
+TOKEN_FILE = ROOT / "data" / "token.txt"
 
 app = FastAPI(title="Metroviolencia", version="0.1")
+
+
+def _token() -> str:
+    """Token de acceso (hardcodeado en la APK). Si no hay, acceso abierto (dev)."""
+    if TOKEN_FILE.exists():
+        return TOKEN_FILE.read_text(encoding="utf-8").strip()
+    return os.environ.get("METRO_TOKEN", "").strip()
+
+
+@app.middleware("http")
+async def auth_token(request: Request, call_next):
+    """Exige el token (por cookie o ?token=). Sin token válido -> 403.
+    La APK abre .../metroviolencia/?token=XXX una vez; se fija la cookie y el
+    resto de peticiones (app.js, /api/...) van autenticadas."""
+    token = _token()
+    if not token:
+        return await call_next(request)   # sin token configurado = abierto
+    q = request.query_params.get("token")
+    ok = q == token or request.cookies.get("mvtoken") == token
+    if not ok:
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    resp = await call_next(request)
+    if q == token:   # primer acceso con token en la URL: fija cookie
+        resp.set_cookie("mvtoken", token, max_age=31536000,
+                        path="/metroviolencia", httponly=True, samesite="lax")
+    return resp
 
 
 def _con() -> sqlite3.Connection:
