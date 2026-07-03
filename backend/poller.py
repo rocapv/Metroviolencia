@@ -19,17 +19,25 @@ from pathlib import Path
 
 import requests
 
-# El certificado de metrovalencia.es llega con la cadena incompleta (falta el
-# intermedio). truststore usa el almacén del SO, que la completa vía AIA.
-try:
-    import truststore
-
-    truststore.inject_into_ssl()
-except Exception:  # noqa: BLE001 - en Linux suele no hacer falta
-    pass
-
 from .network import load_network
 from .parser import parse_arrivals
+
+# El certificado de metrovalencia.es llega con la cadena incompleta (falta el
+# intermedio de Sectigo). Estrategia de verificación TLS, por orden:
+#   1) data/ca-bundle.pem si existe (certifi + intermedio; ver build_ca_bundle.py)
+#   2) truststore (almacén del SO; resuelve AIA en Windows)
+#   3) verificación por defecto de requests
+_CA_BUNDLE = Path(__file__).resolve().parent.parent / "data" / "ca-bundle.pem"
+VERIFY: object = True
+if _CA_BUNDLE.exists():
+    VERIFY = str(_CA_BUNDLE)
+else:
+    try:
+        import truststore
+
+        truststore.inject_into_ssl()
+    except Exception:  # noqa: BLE001
+        pass
 
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "data" / "metro.db"
@@ -77,7 +85,8 @@ def init_db() -> sqlite3.Connection:
 def fetch_station(session: requests.Session, sid: int) -> str | None:
     body = f"action=formularios_ajax&data=action%3Dinfo-estacion%26id%3D{sid}"
     try:
-        r = session.post(AJAX_URL, data=body, headers=HEADERS, timeout=TIMEOUT)
+        r = session.post(AJAX_URL, data=body, headers=HEADERS, timeout=TIMEOUT,
+                         verify=VERIFY)
         if r.status_code == 200 and len(r.text) > 5:
             return r.json().get("html")
     except (requests.RequestException, ValueError):
