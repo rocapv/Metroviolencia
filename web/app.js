@@ -59,6 +59,56 @@ function fmtEta(seg) {
 }
 const etaViu = (t) => Math.max(0, t.eta_seg - Math.max(0, Math.floor(Date.now() / 1000) - ultimoTs));
 
+/* Separa lateralment les línies de metro que comparteixen corredor (p. ex.
+   L2+L7 Torrent–Torrent Av, o el nucli L5/L7/L9): desplaça cada línia perpendicular
+   a la seua direcció segons el seu ordre entre les que comparteixen eixe punt.
+   Modifica comerciales[lid].path -> el dibuix I els trens (que usen eixa geometria)
+   queden costat a costat. On una línia va sola, no es mou. */
+function offsetCorredores(net) {
+  const tram = net.tram_tracks || {};
+  const metro = Object.keys(comerciales).map(Number)
+    .filter((l) => !(String(l) in tram)).sort((a, b) => a - b);
+  if (metro.length < 2) return;
+  const SPACING = 7, CELL = 16;
+  const grid = new Map();
+  const cellKey = (la, ln) => Math.round(la * 111000 / CELL) + "|" + Math.round(ln * 85000 / CELL);
+  for (const lid of metro)
+    for (const [la, ln] of comerciales[String(lid)].path) {
+      const k = cellKey(la, ln);
+      if (!grid.has(k)) grid.set(k, new Set());
+      grid.get(k).add(lid);
+    }
+  const near = (la, ln) => {
+    const s = new Set();
+    const cx = Math.round(la * 111000 / CELL), cy = Math.round(ln * 85000 / CELL);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const g = grid.get((cx + i) + "|" + (cy + j));
+      if (g) g.forEach((l) => s.add(l));
+    }
+    return [...s].sort((a, b) => a - b);
+  };
+  for (const lid of metro) {
+    const lc = comerciales[String(lid)], path = lc.path, n = path.length;
+    const off = new Array(n).fill(0);
+    for (let i = 0; i < n; i++) {
+      const grp = near(path[i][0], path[i][1]);
+      if (grp.length > 1) off[i] = (grp.indexOf(lid) - (grp.length - 1) / 2) * SPACING;
+    }
+    const sm = off.map((_, i) => {
+      let s = 0, c = 0;
+      for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) { s += off[j]; c++; }
+      return s / c;
+    });
+    lc.path = path.map((p, i) => {
+      const a = path[Math.max(0, i - 1)], b = path[Math.min(n - 1, i + 1)];
+      let dx = (b[1] - a[1]) * 85000, dy = (b[0] - a[0]) * 111000;
+      const L = Math.hypot(dx, dy) || 1;
+      const px = -dy / L, py = dx / L;   // perpendicular unitari
+      return [p[0] + (py * sm[i]) / 111000, p[1] + (px * sm[i]) / 85000];
+    });
+  }
+}
+
 /* ---------- xarxa ---------- */
 async function cargarRed() {
   const net = await (await fetch(API + "api/network")).json();
@@ -66,6 +116,7 @@ async function cargarRed() {
   comerciales = net.comerciales || {};
   sinTiempoReal = net.sin_tiempo_real || [];
   estacionesRetorno = new Set(net.estaciones_retorno || []);
+  offsetCorredores(net);   // separa lateralmente les línies de metro que comparteixen via
 
   const porNom = {};
   for (const e of net.estaciones) porNom[e.nombre] = e;
