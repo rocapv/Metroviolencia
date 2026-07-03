@@ -16,14 +16,19 @@ PY="$HERE/../.venv/Scripts/python.exe"
 TOKEN="${1:-${METRO_TOKEN:-}}"
 [ -z "$TOKEN" ] && [ -f ../data/token.txt ] && TOKEN="$(cat ../data/token.txt)"
 [ -z "$TOKEN" ] && { echo "Falta token (arg1, METRO_TOKEN o ../data/token.txt)"; exit 1; }
-BASE_URL="${BASE_URL:-http://192.168.1.100/metroviolencia/}"
-URL="${BASE_URL}?token=${TOKEN}"
+BASE_LAN="${BASE_LAN:-http://192.168.1.100/metroviolencia/}"     # dins de la LAN
+HOST_EXT="${HOST_EXT:-home.pr1.es}"
+BASE_EXT="${BASE_EXT:-https://home.pr1.es:8751/metroviolencia/}"  # fora de la LAN
+URL_LAN="${BASE_LAN}?token=${TOKEN}"
+URL_EXT="${BASE_EXT}?token=${TOKEN}"
 
 OUT=build
 rm -rf "$OUT"; mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/src/com/mdk/metroviolencia"
 
-echo "[0/8] MainActivity.java (token embebido)"
-sed "s|__URL__|${URL}|g" MainActivity.java.tmpl > "$OUT/src/com/mdk/metroviolencia/MainActivity.java"
+echo "[0/8] MainActivity.java (token + LAN/externa embebidos)"
+sed -e "s|__URL_LAN__|${URL_LAN}|g" -e "s|__URL_EXT__|${URL_EXT}|g" \
+    -e "s|__HOST_EXT__|${HOST_EXT}|g" MainActivity.java.tmpl \
+    > "$OUT/src/com/mdk/metroviolencia/MainActivity.java"
 
 echo "[1/8] aapt2 compile recursos"
 "$BT/aapt2.exe" compile --dir res -o "$OUT/res.zip"

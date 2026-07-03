@@ -1,17 +1,28 @@
 package com.mdk.metroviolencia;
 
 import android.app.Activity;
+import android.net.http.SslError;
 import android.os.Bundle;
 import android.view.KeyEvent;
+import android.webkit.SslErrorHandler;
 import android.webkit.WebView;
 import android.webkit.WebSettings;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebViewClient;
 
-// APK-quiosc: obri el mapa de Metroviolencia a la Raspa amb el token embegut.
-// El token va hardcodejat ací (__URL__ se substitueix en build des de data/token.txt).
+// APK-quiosc: obri el mapa de Metroviolencia amb el token embegut.
+// Prova primer la LAN; si falla (fora de casa) salta a l'adreça externa.
+// __URL_LAN__ i __URL_EXT__ se substitueixen en build.
 public class MainActivity extends Activity {
 
+    private static final String URL_LAN = "__URL_LAN__";
+    private static final String URL_EXT = "__URL_EXT__";
+    private static final String HOST_EXT = "__HOST_EXT__";
+
     private WebView web;
+    private boolean triedExt = false;
+    private boolean loaded = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -21,11 +32,38 @@ public class MainActivity extends Activity {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
-        s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        web.setWebViewClient(new WebViewClient());
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
+
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView v, String url) {
+                loaded = true;
+            }
+
+            @Override
+            public void onReceivedError(WebView v, WebResourceRequest req, WebResourceError err) {
+                // si falla la càrrega principal de la LAN, prova l'adreça externa
+                if (req.isForMainFrame() && !triedExt && !loaded) {
+                    triedExt = true;
+                    v.loadUrl(URL_EXT);
+                }
+            }
+
+            @Override
+            public void onReceivedSslError(WebView v, SslErrorHandler handler, SslError error) {
+                // el cert de home.pr1.es és autofirmat: accepta'l NOMÉS per a eixe host
+                String u = error.getUrl();
+                if (u != null && u.contains(HOST_EXT)) {
+                    handler.proceed();
+                } else {
+                    handler.cancel();
+                }
+            }
+        });
+
         setContentView(web);
         if (savedInstanceState == null) {
-            web.loadUrl("__URL__");
+            web.loadUrl(URL_LAN);
         }
     }
 
