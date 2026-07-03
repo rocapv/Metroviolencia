@@ -9,3 +9,6 @@ data/*.raw.html
 data/sample-*.json
 
 # se conserva data/network.json (geometría derivada, necesaria en runtime)
+
+data/*.db-journal
+data/*.db-wal
