@@ -19,3 +19,5 @@ data/token.txt
 # APK build
 apk/build/
 apk/debug.keystore
+
+apk/icon_preview.png
