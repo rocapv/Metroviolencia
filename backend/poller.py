@@ -72,7 +72,20 @@ CREATE TABLE IF NOT EXISTS arrivals (
 );
 CREATE INDEX IF NOT EXISTS idx_arr_snap ON arrivals(snapshot_id);
 CREATE INDEX IF NOT EXISTS idx_arr_est  ON arrivals(estacion_id, ts);
+
+-- Registro NoInfo: por pasada, las líneas esperadas que NO dieron ninguna
+-- llegada (la fuente no informó). Sirve para saber "cuándo faltó dato".
+CREATE TABLE IF NOT EXISTS noinfo (
+    snapshot_id INTEGER NOT NULL,
+    ts          INTEGER NOT NULL,
+    linea       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_noinfo_ts ON noinfo(linea, ts);
 """
+
+# Líneas de METRO con tiempo real en la fuente. Si alguna no aparece en una
+# pasada -> se registra NoInfo. Los tranvías (4,6,8) nunca dan datos y no cuentan.
+LINEAS_ESPERADAS = [1, 2, 3, 5, 7, 9, 10]
 
 
 def init_db() -> sqlite3.Connection:
@@ -116,9 +129,15 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
         " VALUES (?,?,?,?,?,?,?,?)",
         rows,
     )
+    # NoInfo: líneas esperadas sin ninguna llegada en esta pasada
+    lineas_con_datos = {r[3] for r in rows}
+    ni = [(snap_id, ts, l) for l in LINEAS_ESPERADAS if l not in lineas_con_datos]
+    if ni:
+        con.executemany("INSERT INTO noinfo(snapshot_id,ts,linea) VALUES (?,?,?)", ni)
     con.commit()
+    faltan = ", ".join(f"L{l}" for _s, _t, l in ni) or "-"
     print(f"[{time.strftime('%H:%M:%S')}] snapshot {snap_id}: "
-          f"{ok}/{len(net.estaciones)} estaciones, {len(rows)} llegadas")
+          f"{ok}/{len(net.estaciones)} estaciones, {len(rows)} llegadas, NoInfo: {faltan}")
     return snap_id
 
 

@@ -87,6 +87,11 @@ html, body {
   transition: opacity 0.15s;
 }
 .chip.off { opacity: 0.28; }
+.chip.noinfo { position: relative; }
+.chip.noinfo::after {
+  content: ""; position: absolute; left: 6%; right: 6%; top: 50%; height: 2px;
+  background: rgba(0,0,0,0.55); transform: rotate(-8deg);
+}
 
 #avisos { margin-top: 10px; }
 .aviso {
@@ -119,8 +124,9 @@ html, body {
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 0 8px 1px rgba(0, 0, 0, 0.6);
-  transition: transform 0.4s ease;
 }
+/* moviment suau entre passos d'animació */
+.leaflet-marker-icon { transition: transform 0.5s linear; }
 
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
   background: #16161f;

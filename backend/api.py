@@ -78,8 +78,14 @@ def trains():
     llegadas = [(r["estacion_id"], r["linea"], r["destino"], r["eta_seg"]) for r in rows]
     net = load_network()
     trenes = [t.to_dict() for t in estimar(net, llegadas)]
+    try:
+        noinfo = [r["linea"] for r in con.execute(
+            "SELECT linea FROM noinfo WHERE snapshot_id=? ORDER BY linea", (snap["id"],)
+        ).fetchall()]
+    except sqlite3.OperationalError:
+        noinfo = []  # tabla aún no creada
     return {"ts": snap["ts"], "edad_seg": int(time.time()) - snap["ts"],
-            "n": len(trenes), "trenes": trenes}
+            "n": len(trenes), "trenes": trenes, "noinfo": noinfo}
 
 
 @app.get("/api/health")
