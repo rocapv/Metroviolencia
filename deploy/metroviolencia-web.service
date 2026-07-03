@@ -7,7 +7,8 @@ Wants=network-online.target
 Type=simple
 User=roca
 WorkingDirectory=/home/roca/Metroviolencia
-ExecStart=/home/roca/Metroviolencia/.venv/bin/python -m uvicorn backend.api:app --host 0.0.0.0 --port 8770
+# Solo localhost: el acceso LAN llega por Apache (/metroviolencia), nunca directo a :8770
+ExecStart=/home/roca/Metroviolencia/.venv/bin/python -m uvicorn backend.api:app --host 127.0.0.1 --port 8770 --root-path /metroviolencia
 Restart=always
 RestartSec=10
 
