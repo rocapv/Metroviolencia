@@ -17,12 +17,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "tram_tracks.json"
 
-# Relaciones de ruta OSM (variantes que cubren ramales) por línea.
+# Relaciones de ruta OSM por línea. IMPORTANTE: una sola dirección por línea
+# (si se mezclan sentidos, OSM traza los dos raíles paralelos = "varios carriles").
+# Para L4 (con ramales) se cogen las 3 variantes que van TODAS hacia Dr. Lluch,
+# así comparten el tronco (misma vía, se deduplica por id) y aportan cada ramal.
 RELACIONES = [
-    5620862, 5621789, 5621890,   # L4 (Dr. Lluch / Mas del Rosari / Fira / Ll. Llarga)
-    5621993,                     # L6 (Tossal del Rei – Marítim)
-    5622077,                     # L8 (Neptú – Marítim)
-    14166106,                    # L10 (Alacant – Natzaret)
+    5620862, 5621891, 5621892,   # L4 -> Dr. Lluch (Mas del Rosari / Fira / Ll. Llarga)
+    5621993,                     # L6  Tossal del Rei -> Marítim
+    5622077,                     # L8  Neptú -> Marítim
+    14166106,                    # L10 Alacant -> Natzaret
 ]
 ENDPOINTS = [
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
@@ -54,20 +57,20 @@ def query(rel_ids: list[int]) -> dict:
 def main() -> int:
     data = query(RELACIONES)
     tracks: dict[str, list] = collections.defaultdict(list)
+    vistos: dict[str, set] = collections.defaultdict(set)  # ref -> way ids
     for rel in data["elements"]:
         if rel["type"] != "relation":
             continue
         ref = rel["tags"].get("ref")
-        seen = set()
         for m in rel.get("members", []):
-            if m["type"] == "way" and "geometry" in m:
-                poly = [[round(p["lat"], 6), round(p["lon"], 6)] for p in m["geometry"]]
-                if len(poly) < 2:
-                    continue
-                key = (poly[0][0], poly[0][1], poly[-1][0], poly[-1][1], len(poly))
-                if key in seen:
-                    continue
-                seen.add(key)
+            if m["type"] != "way" or "geometry" not in m:
+                continue
+            wid = m.get("ref")
+            if wid in vistos[ref]:      # dedup por ID de vía (tronco compartido)
+                continue
+            vistos[ref].add(wid)
+            poly = [[round(p["lat"], 6), round(p["lon"], 6)] for p in m["geometry"]]
+            if len(poly) >= 2:
                 tracks[ref].append(poly)
     OUT.write_text(json.dumps(tracks, ensure_ascii=False), encoding="utf-8")
     print({k: f"{len(v)} tramos" for k, v in sorted(tracks.items())})

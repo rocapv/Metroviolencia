@@ -65,9 +65,11 @@ async function cargarRed() {
   sinTiempoReal = net.sin_tiempo_real || [];
   estacionesRetorno = new Set(net.estaciones_retorno || []);
 
-  // traçats de via (segments) — color propi, ja correcte
-  for (const [, info] of Object.entries(net.lineas)) {
-    if (!info.path || info.path.length < 2) continue;
+  // traçats de METRO: només els segments de metro (els del tramvia venen d'OSM;
+  // dibuixar-los tots dos duplicava carrils entre parades)
+  const metroSegs = new Set((net.metro_segs || []).map(String));
+  for (const [seg, info] of Object.entries(net.lineas)) {
+    if (!metroSegs.has(String(seg)) || !info.path || info.path.length < 2) continue;
     L.polyline(info.path, { color: hex("#" + info.color), weight: 3.5,
       opacity: 0.85, lineJoin: "round" }).addTo(map);
   }
@@ -110,17 +112,43 @@ async function cargarRed() {
   construirLeyenda(lineas);
 }
 
+// sub-traçat d'una línia comercial entre dues estacions (segueix la via real)
+function subTracat(lid, nomA, nomB, porNom) {
+  const lc = comerciales[String(lid)];
+  if (!lc || !lc.cum) return null;
+  const idA = porNom[nomA]?.id, idB = porNom[nomB]?.id;
+  const eA = lc.estaciones.find((e) => e.id === idA);
+  const eB = lc.estaciones.find((e) => e.id === idB);
+  if (!eA || !eB) return null;
+  const d0 = Math.min(eA.d, eB.d), d1 = Math.max(eA.d, eB.d);
+  const out = [distToLatLng(lid, d0)];
+  for (let i = 0; i < lc.cum.length; i++)
+    if (lc.cum[i] > d0 && lc.cum[i] < d1) out.push(lc.path[i]);
+  out.push(distToLatLng(lid, d1));
+  return out;
+}
+
 function dibuixarCierres(cierres, porNom) {
   const av = document.getElementById("avisos");
-  av.dataset.cierres = "";
   for (const c of cierres) {
-    const pts = (c.tramo || []).map((n) => porNom[n]).filter(Boolean).map((e) => [e.lat, e.lng]);
-    if (pts.length >= 2) {
-      L.polyline(pts, { color: "#7a7a86", weight: 5, opacity: 0.9,
-        dashArray: "2 9", lineCap: "round" }).addTo(map)
+    // dibuixa el corredor tallat seguint la via real (una línia de la llista);
+    // com L5 i L7 comparteixen corredor, cobreix les dues.
+    let pts = null;
+    for (const lid of c.lineas || []) {
+      pts = subTracat(lid, c.tramo[0], c.tramo[c.tramo.length - 1], porNom);
+      if (pts) break;
+    }
+    if (!pts) pts = (c.tramo || []).map((n) => porNom[n]).filter(Boolean).map((e) => [e.lat, e.lng]);
+    if (pts && pts.length >= 2) {
+      L.polyline(pts, { color: "#8a8a96", weight: 6, opacity: 0.95,
+        dashArray: "1 10", lineCap: "round" }).addTo(map)
         .bindTooltip(c.nota || "Tram tallat", { sticky: true });
-      for (const p of pts) L.circleMarker(p, { radius: 4, color: "#7a7a86",
-        weight: 2, fillColor: "#1a1a22", fillOpacity: 1 }).addTo(map);
+      for (const n of c.tramo || []) {
+        const e = porNom[n];
+        if (e) L.circleMarker([e.lat, e.lng], { radius: 4.5, color: "#8a8a96",
+          weight: 2.5, fillColor: "#1a1a22", fillOpacity: 1 }).addTo(map)
+          .bindTooltip(`${n} · tancada`, { direction: "top" });
+      }
     }
     const div = document.createElement("div");
     div.className = "aviso";

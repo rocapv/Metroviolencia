@@ -339,6 +339,12 @@ class Network:
             "estaciones_retorno": self.estaciones_retorno(),
             "conectores": self.conectores(),
             "tram_tracks": self.tram_tracks(),
+            # segmentos de vía crudos a dibujar = solo los de METRO (los del
+            # tranvía se dibujan desde OSM; dibujar ambos duplicaba carriles)
+            "metro_segs": sorted({
+                lc.seg for lid, lc in self.comerciales.items()
+                if str(lid) not in self.tram_tracks()
+            }),
             "comerciales": {
                 str(lid): {
                     "color": lc.color,
