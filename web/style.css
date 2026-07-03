@@ -120,12 +120,19 @@ html, body {
 }
 
 /* trenes */
-.tren {
+.tren-wrap { position: relative; width: 20px; height: 20px; }
+.tren-dot {
+  position: absolute; left: 50%; top: 50%;
+  width: 13px; height: 13px; margin: -7px 0 0 -7px;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.9);
   box-shadow: 0 0 8px 1px rgba(0, 0, 0, 0.6);
 }
-/* moviment suau entre passos d'animació */
+.tren-arrow {
+  position: absolute; left: 0; top: 0; display: none;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85));
+}
+/* moviment suau entre passos d'animació (posició, no rotació) */
 .leaflet-marker-icon { transition: transform 0.5s linear; }
 
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {

@@ -1,4 +1,11 @@
 {
+  "estaciones_retorno": [
+    "València Sud",
+    "Empalme",
+    "Av. del Cid",
+    "Alameda"
+  ],
+  "_nota_retorno": "Estaciones intermedias donde los trenes pueden terminar, descansar e invertir el sentido. València Sud es además depósito. Los finales de línea también son cabeceras.",
   "cierres": [
     {
       "id": "alameda-maritim-2026",

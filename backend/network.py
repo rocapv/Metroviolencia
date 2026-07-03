@@ -307,13 +307,26 @@ class Network:
                         })
         return out
 
-    def cierres(self) -> list[dict]:
+    def _service(self) -> dict:
         if not SERVICE_JSON.exists():
-            return []
+            return {}
         try:
-            return json.loads(SERVICE_JSON.read_text(encoding="utf-8")).get("cierres", [])
+            return json.loads(SERVICE_JSON.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
-            return []
+            return {}
+
+    def cierres(self) -> list[dict]:
+        return self._service().get("cierres", [])
+
+    def estaciones_retorno(self) -> list[str]:
+        """Cabeceras intermedias + finales de línea donde los trenes descansan
+        e invierten el sentido."""
+        retorno = set(self._service().get("estaciones_retorno", []))
+        for lc in self.comerciales.values():
+            if lc.orden:
+                retorno.add(self.estaciones[lc.orden[0][1]].nombre)
+                retorno.add(self.estaciones[lc.orden[-1][1]].nombre)
+        return sorted(retorno)
 
     def to_geojson_meta(self) -> dict:
         """Datos estáticos para el frontend."""
@@ -323,6 +336,7 @@ class Network:
             # tranvías: la fuente no da tiempo real -> siempre "sense info"
             "sin_tiempo_real": [4, 6, 8],
             "cierres": self.cierres(),
+            "estaciones_retorno": self.estaciones_retorno(),
             "conectores": self.conectores(),
             "tram_tracks": self.tram_tracks(),
             "comerciales": {

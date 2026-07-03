@@ -26,6 +26,7 @@ let ultimoTrenes = [];
 let ultimoTs = 0;
 let noinfo = [];                   // línies metro sense info ara mateix (tall de font)
 let sinTiempoReal = [];            // trams sense temps real (sempre)
+let estacionesRetorno = new Set(); // capçaleres/retorns on els trens descansen
 let arrivalsCache = { ts: 0, estaciones: {} };
 
 const hex = (c) => (c && c.startsWith("#") ? c : "#" + (c || "888"));
@@ -62,6 +63,7 @@ async function cargarRed() {
   colores = net.colores_comercial || net.colores || {};
   comerciales = net.comerciales || {};
   sinTiempoReal = net.sin_tiempo_real || [];
+  estacionesRetorno = new Set(net.estaciones_retorno || []);
 
   // traçats de via (segments) — color propi, ja correcte
   for (const [, info] of Object.entries(net.lineas)) {
@@ -87,9 +89,16 @@ async function cargarRed() {
   const porNom = {};
   for (const e of net.estaciones) {
     porNom[e.nombre] = e;
-    const m = L.circleMarker([e.lat, e.lng], { radius: 3.2, color: "#fff",
-      weight: 1, fillColor: "#111", fillOpacity: 1 }).addTo(map);
-    m.bindTooltip(e.nombre, { direction: "top", opacity: 0.9 });
+    const ret = estacionesRetorno.has(e.nombre);   // capçalera/retorn
+    const m = L.circleMarker([e.lat, e.lng], {
+      radius: ret ? 5 : 3.2,
+      color: ret ? "#cfcfe0" : "#fff",
+      weight: ret ? 2.5 : 1,
+      fillColor: ret ? "#2a2a36" : "#111",
+      fillOpacity: 1,
+    }).addTo(map);
+    m.bindTooltip(ret ? `${e.nombre} · capçalera/retorn` : e.nombre,
+      { direction: "top", opacity: 0.9 });
     m.estId = e.id; m.estNom = e.nombre; m.estLineas = e.lineas;
     m.on("click", () => obrirPopupEstacio(m));
   }
@@ -205,9 +214,42 @@ function pintarTrenes(trenes) {
 
 function iconoTren(t) {
   const c = "#" + (t.color || "888");
-  return L.divIcon({ className: "",
-    html: `<div class="tren" style="width:13px;height:13px;background:${c}"></div>`,
-    iconSize: [13, 13], iconAnchor: [6, 6] });
+  // punt (parat en capçalera/retorn) + fletxa (en marxa, girada al rumb)
+  return L.divIcon({
+    className: "",
+    html:
+      `<div class="tren-wrap">` +
+      `<span class="tren-dot" style="background:${c}"></span>` +
+      `<svg class="tren-arrow" viewBox="0 0 24 24" width="20" height="20" style="fill:${c}">` +
+      `<path d="M3 12 L21 12 M21 12 L14 6 M21 12 L14 18" stroke="${c}" stroke-width="3.5" ` +
+      `fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>` +
+      `</div>`,
+    iconSize: [20, 20], iconAnchor: [10, 10],
+  });
+}
+
+// direcció de marxa sobre la via (signe de d final - d inicial)
+function dirTren(t) {
+  const wp = t.waypoints;
+  return wp[wp.length - 1].d >= wp[0].d ? 1 : -1;
+}
+// velocitat instantània (m/s) segons el tram de trajectòria actiu; 0 = parat
+function velTren(t) {
+  const wp = t.waypoints;
+  const tau = Math.max(0, Math.floor(Date.now() / 1000) - ultimoTs);
+  let i = 0;
+  while (i < wp.length - 1 && wp[i + 1].eta <= tau) i++;
+  if (i >= wp.length - 1) return 0;            // ha arribat al final
+  const dt = wp[i + 1].eta - wp[i].eta;
+  return dt > 0 ? Math.abs(wp[i + 1].d - wp[i].d) / dt : 0;
+}
+// angle en pantalla (graus) del rumb del tren a la posició d
+function rumbPantalla(t, d) {
+  const a = distToLatLng(t.linea, d);
+  const b = distToLatLng(t.linea, d + dirTren(t) * 40);
+  if (!a || !b) return 0;
+  const pa = map.latLngToContainerPoint(a), pb = map.latLngToContainerPoint(b);
+  return Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI;
 }
 
 function popupTren(t) {
@@ -221,11 +263,30 @@ function popupTren(t) {
 
 /* ---------- animació contínua sobre la via ---------- */
 function animar() {
-  for (const { marker, tren } of marcadores.values()) {
-    marker.setLatLng(posicioViva(tren));
-    if (marker.isPopupOpen()) {
-      const b = marker.getPopup().getElement()?.querySelector(".c-eta");
-      if (b) b.textContent = fmtEta(proxParada(tren).eta);
+  for (const e of marcadores.values()) {
+    const t = e.tren;
+    const d = distVivaTren(t);
+    if (d == null) continue;
+    e.marker.setLatLng(distToLatLng(t.linea, d) || [t.lat, t.lng]);
+
+    // en marxa segons la velocitat del tram actiu (estable, sense parpelleig)
+    const movent = velTren(t) > 1.5;
+    const el = e.marker.getElement();
+    if (el) {
+      const dot = el.querySelector(".tren-dot");
+      const arr = el.querySelector(".tren-arrow");
+      if (dot && arr) {
+        if (movent) {
+          arr.style.transform = `rotate(${rumbPantalla(t, d)}deg)`;
+          arr.style.display = "block"; dot.style.display = "none";
+        } else {
+          arr.style.display = "none"; dot.style.display = "block";
+        }
+      }
+    }
+    if (e.marker.isPopupOpen()) {
+      const b = e.marker.getPopup().getElement()?.querySelector(".c-eta");
+      if (b) b.textContent = fmtEta(proxParada(t).eta);
     }
   }
 }
