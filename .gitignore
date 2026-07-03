@@ -15,3 +15,7 @@ data/*.db-wal
 
 # secreto: token de acceso
 data/token.txt
+
+# APK build
+apk/build/
+apk/debug.keystore
