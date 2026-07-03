@@ -508,12 +508,12 @@ function pintarLlegadesPopup(el, estId) {
 
 /* ---------- refresc ---------- */
 function pintarNoinfo() {
+  // Els tramvies (sinTiempoReal) NO es diferencien a la llegenda; només es marca
+  // una línia de metro que ara mateix no dóna informació (tall real de la font).
   for (const [l, chip] of Object.entries(chipsPorLinea)) {
     const n = Number(l);
-    const sense = noinfo.includes(n) || sinTiempoReal.includes(n);
-    chip.classList.toggle("noinfo", sense);
-    chip.title = sinTiempoReal.includes(n) ? "sense temps real (tramvia)"
-      : (noinfo.includes(n) ? "sense informació ara mateix" : "");
+    chip.classList.toggle("noinfo", noinfo.includes(n));
+    chip.title = noinfo.includes(n) ? "sense informació ara mateix" : "";
   }
 }
 
