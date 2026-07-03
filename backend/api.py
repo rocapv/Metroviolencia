@@ -38,20 +38,41 @@ def _token() -> str:
     return os.environ.get("METRO_TOKEN", "").strip()
 
 
+def _is_lan(ip: str) -> bool:
+    """Rangos de red local (RFC1918) + loopback -> sin token."""
+    return (
+        ip in ("127.0.0.1", "::1", "localhost")
+        or ip.startswith("192.168.")
+        or ip.startswith("10.")
+        or any(ip.startswith(f"172.{n}.") for n in range(16, 32))
+    )
+
+
+def _client_ip(request: Request) -> str:
+    # Apache (mod_proxy) AÑADE la IP real al final de X-Forwarded-For; el último
+    # valor es el que vio Apache = cliente real (no falsificable por el cliente).
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[-1].strip()
+    return request.client.host if request.client else ""
+
+
 @app.middleware("http")
 async def auth_token(request: Request, call_next):
-    """Exige el token (por cookie o ?token=). Sin token válido -> 403.
-    La APK abre .../metroviolencia/?token=XXX una vez; se fija la cookie y el
-    resto de peticiones (app.js, /api/...) van autenticadas."""
+    """En RED LOCAL no hace falta token. Desde FUERA de la LAN el token es el
+    secreto obligatorio: sin él, aun con IP/puerto, la web no responde (403).
+    La APK abre .../?token=XXX una vez; se fija la cookie y el resto de
+    peticiones (app.js, /api/...) van autenticadas."""
+    if _is_lan(_client_ip(request)):
+        return await call_next(request)   # LAN: acceso libre
+
     token = _token()
-    if not token:
-        return await call_next(request)   # sin token configurado = abierto
     q = request.query_params.get("token")
-    ok = q == token or request.cookies.get("mvtoken") == token
+    ok = bool(token) and (q == token or request.cookies.get("mvtoken") == token)
     if not ok:
         return JSONResponse({"error": "forbidden"}, status_code=403)
     resp = await call_next(request)
-    if q == token:   # primer acceso con token en la URL: fija cookie
+    if q == token:   # primer acceso externo con token en la URL: fija cookie
         resp.set_cookie("mvtoken", token, max_age=31536000,
                         path="/metroviolencia", httponly=True, samesite="lax")
     return resp
