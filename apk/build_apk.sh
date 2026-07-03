@@ -13,23 +13,32 @@ ANDJAR="$SDK/platforms/android-34/android.jar"
 BT="$SDK/build-tools/34.0.0"
 PY="$HERE/../.venv/Scripts/python.exe"
 
-TOKEN="${1:-${METRO_TOKEN:-}}"
-[ -z "$TOKEN" ] && [ -f ../data/token.txt ] && TOKEN="$(cat ../data/token.txt)"
-[ -z "$TOKEN" ] && { echo "Falta token (arg1, METRO_TOKEN o ../data/token.txt)"; exit 1; }
-BASE_LAN="${BASE_LAN:-http://192.168.1.100/metroviolencia/}"             # dins de la LAN
+# Variante: por defecto PERSONAL (token embebido). Con --dist o DIST=1 => la app
+# PIDE el token (para enviar a otros teléfonos).
+DIST=0
+if [ "$1" = "--dist" ]; then DIST=1; shift; fi
+[ "${DIST:-0}" = "1" ] && DIST=1
+
+if [ "$DIST" = "1" ]; then
+  TOKEN=""                       # sin token: la app lo pedirá
+  OUTNAME="metroviolencia-dist.apk"
+else
+  TOKEN="${1:-${METRO_TOKEN:-}}"
+  [ -z "$TOKEN" ] && [ -f ../data/token.txt ] && TOKEN="$(cat ../data/token.txt)"
+  [ -z "$TOKEN" ] && { echo "Falta token (arg1, METRO_TOKEN o ../data/token.txt)"; exit 1; }
+  OUTNAME="metroviolencia.apk"
+fi
+BASE_LAN="${BASE_LAN:-http://192.168.1.100/metroviolencia/}"                  # dins de la LAN
 BASE_EXT_HTTPS="${BASE_EXT_HTTPS:-https://home.pr1.es:8751/metroviolencia/}"  # extern HTTPS (port dedicat)
 BASE_EXT_HTTP="${BASE_EXT_HTTP:-http://home.pr1.es:5580/metroviolencia/}"     # extern HTTP (port ja reenviat)
-URL_LAN="${BASE_LAN}?token=${TOKEN}"
-URL_EXT_HTTPS="${BASE_EXT_HTTPS}?token=${TOKEN}"
-URL_EXT_HTTP="${BASE_EXT_HTTP}?token=${TOKEN}"
 
 OUT=build
 rm -rf "$OUT"; mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/src/com/mdk/metroviolencia"
 
-echo "[0/8] MainActivity.java (token + adreces LAN/HTTPS/HTTP embegudes)"
-sed -e "s|__URL_LAN__|${URL_LAN}|g" -e "s|__URL_EXT_HTTPS__|${URL_EXT_HTTPS}|g" \
-    -e "s|__URL_EXT_HTTP__|${URL_EXT_HTTP}|g" MainActivity.java.tmpl \
-    > "$OUT/src/com/mdk/metroviolencia/MainActivity.java"
+echo "[0/8] MainActivity.java (variante $([ "$DIST" = 1 ] && echo distribución || echo personal))"
+sed -e "s|__TOKEN__|${TOKEN}|g" -e "s|__BASE_LAN__|${BASE_LAN}|g" \
+    -e "s|__BASE_HTTPS__|${BASE_EXT_HTTPS}|g" -e "s|__BASE_HTTP__|${BASE_EXT_HTTP}|g" \
+    MainActivity.java.tmpl > "$OUT/src/com/mdk/metroviolencia/MainActivity.java"
 
 echo "[1/8] aapt2 compile recursos"
 "$BT/aapt2.exe" compile --dir res -o "$OUT/res.zip"
@@ -41,7 +50,7 @@ echo "[2/8] aapt2 link"
   "$OUT/res.zip"
 
 echo "[3/8] javac"
-"$JDK/bin/javac.exe" -source 8 -target 8 -bootclasspath "$ANDJAR" -classpath "$ANDJAR" \
+"$JDK/bin/javac.exe" -source 8 -target 8 -encoding UTF-8 -bootclasspath "$ANDJAR" -classpath "$ANDJAR" \
   -d "$OUT/classes" \
   "$OUT/src/com/mdk/metroviolencia/MainActivity.java" \
   "$OUT/gen/com/mdk/metroviolencia/R.java"
@@ -66,6 +75,6 @@ fi
 
 echo "[8/8] apksigner"
 "$BT/apksigner.bat" sign --ks debug.keystore --ks-pass pass:metroviolencia \
-  --key-pass pass:metroviolencia --out "$OUT/metroviolencia.apk" "$OUT/aligned.apk"
+  --key-pass pass:metroviolencia --out "$OUT/${OUTNAME}" "$OUT/aligned.apk"
 
-echo "OK -> $HERE/$OUT/metroviolencia.apk"
+echo "OK -> $HERE/$OUT/${OUTNAME}"
