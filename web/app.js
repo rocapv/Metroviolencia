@@ -141,34 +141,66 @@ function construirLeyenda(lineas) {
   }
 }
 
-/* ---------- trens ---------- */
-const claveTren = (t) => `${t.linea}|${t.destino}|${t.prox_estacion_id}`;
-
+/* ---------- trens: posició sobre la trajectòria (waypoints) ---------- */
+// distància sobre la via en el moment actual, interpolant els waypoints per ETA
+function distVivaTren(t) {
+  const wp = t.waypoints;
+  if (!wp || !wp.length) return null;
+  const tau = Math.max(0, Math.floor(Date.now() / 1000) - ultimoTs);
+  if (tau <= wp[0].eta) return wp[0].d;
+  for (let i = 0; i < wp.length - 1; i++) {
+    if (tau <= wp[i + 1].eta) {
+      const dt = wp[i + 1].eta - wp[i].eta;
+      const f = dt <= 0 ? 1 : (tau - wp[i].eta) / dt;
+      return wp[i].d + f * (wp[i + 1].d - wp[i].d);
+    }
+  }
+  return wp[wp.length - 1].d;   // ha arribat al final (terminal)
+}
 function posicioViva(t) {
-  const etaL = etaViu(t);
-  const dLive = t.d_next - t.sentido * t.speed * etaL;
-  return distToLatLng(t.linea, dLive) || [t.lat, t.lng];
+  const d = distVivaTren(t);
+  return (d == null ? null : distToLatLng(t.linea, d)) || [t.lat, t.lng];
+}
+// pròxima parada viva (primer waypoint amb nom i eta > temps transcorregut)
+function proxParada(t) {
+  const tau = Math.max(0, Math.floor(Date.now() / 1000) - ultimoTs);
+  for (const w of t.waypoints) if (w.nom && w.eta > tau) return { nom: w.nom, eta: w.eta - tau };
+  const last = [...t.waypoints].reverse().find((w) => w.nom);
+  return last ? { nom: last.nom, eta: 0 } : { nom: t.prox_estacion, eta: 0 };
 }
 
+// Emparellament estable: cada tren nou es lliga al marcador més pròxim de la
+// mateixa línia+destí (evita salts; el punt continua endavant entre pulls).
 function pintarTrenes(trenes) {
-  const vius = new Set();
+  const previos = [...marcadores.values()];
+  for (const e of previos) e.usado = false;
+  const nuevos = [];
   for (const t of trenes) {
     if (!lineasVisibles.has(t.linea)) continue;
-    const k = claveTren(t);
-    vius.add(k);
-    let e = marcadores.get(k);
     const ll = posicioViva(t);
-    if (e) { e.tren = t; e.marker.setLatLng(ll); }
-    else {
+    let best = null, bestD = Infinity;
+    for (const e of previos) {
+      if (e.usado || e.tren.linea !== t.linea || e.tren.destino !== t.destino) continue;
+      const p = e.marker.getLatLng();
+      const dd = Math.hypot((p.lat - ll[0]) * 111000, (p.lng - ll[1]) * 85000);
+      if (dd < bestD) { bestD = dd; best = e; }
+    }
+    if (best && bestD < 1500) {   // mateix tren físic: reaprofita el marcador
+      best.usado = true; best.tren = t;
+      best.marker.setLatLng(ll);
+      best.marker.setPopupContent(popupTren(t));
+    } else {
       const marker = L.marker(ll, { icon: iconoTren(t) }).bindPopup(popupTren(t));
       marker.addTo(trenLayer);
-      marcadores.set(k, { marker, tren: t });
-      e = marcadores.get(k);
+      nuevos.push({ marker, tren: t, usado: true });
     }
-    e.marker.setPopupContent(popupTren(e.tren));
   }
-  for (const [k, e] of marcadores)
-    if (!vius.has(k)) { trenLayer.removeLayer(e.marker); marcadores.delete(k); }
+  // esborrar marcadors no reaprofitats i reconstruir el mapa
+  for (const e of previos) if (!e.usado) trenLayer.removeLayer(e.marker);
+  marcadores.clear();
+  let n = 0;
+  for (const e of previos) if (e.usado) marcadores.set("m" + n++, e);
+  for (const e of nuevos) marcadores.set("m" + n++, e);
 }
 
 function iconoTren(t) {
@@ -180,9 +212,11 @@ function iconoTren(t) {
 
 function popupTren(t) {
   const c = "#" + (t.color || "888");
+  const p = proxParada(t);
+  const espera = t.origen ? ' <span style="color:#e8c07a">(en eixida)</span>' : "";
   return `<span class="pop-linea" style="background:${c}">${NOMBRES_LINEA[t.linea] || "L" + t.linea}</span>
-    → <b>${t.destino}</b><br>
-    <span style="color:#9a9aac">pròxima parada: ${t.prox_estacion} · <b class="c-eta">${fmtEta(etaViu(t))}</b></span>`;
+    → <b>${t.destino}</b>${espera}<br>
+    <span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>`;
 }
 
 /* ---------- animació contínua sobre la via ---------- */
@@ -191,7 +225,7 @@ function animar() {
     marker.setLatLng(posicioViva(tren));
     if (marker.isPopupOpen()) {
       const b = marker.getPopup().getElement()?.querySelector(".c-eta");
-      if (b) b.textContent = fmtEta(etaViu(tren));
+      if (b) b.textContent = fmtEta(proxParada(tren).eta);
     }
   }
 }

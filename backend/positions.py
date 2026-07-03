@@ -1,18 +1,22 @@
 """
-Estimador de posiciones de trenes (v4).
+Estimador de posiciones de trenes (v5) — trenes FÍSICOS con trayectoria.
 
-Cambios sobre v3:
-  * Orden y posición sobre el POLYLINE DE VÍA real de cada línea comercial
-    (net.comerciales), no sobre segmentos rectos entre estaciones. Los trenes
-    circulan por la vía.
-  * Se emiten datos para animar en el cliente: distancia de la próxima parada a
-    lo largo de la vía (d_next), velocidad (m/s), sentido y t_tramo. El frontend
-    recalcula la posición viva con la cuenta atrás del ETA.
+Problema de v4: modelaba "próxima llegada por estación" (un punto por estación).
+Al llegar a su parada el punto se congelaba, y al siguiente pull la misma clave
+se reasignaba al tren de detrás -> el punto saltaba atrás (bucle infinito).
 
-Salida por tren:
-  {linea, destino, prox_estacion, anterior_estacion, eta_seg, color,
-   lat, lng,                      # posición inicial (snapshot)
-   d_next, speed, sentido, t_seg} # para animar sobre comerciales[linea]
+v5 reconstruye cada TREN FÍSICO y su trayectoria hacia delante:
+
+  Para una (línea, destino), las estaciones en orden de recorrido hacia el
+  destino tienen ETAs crecientes MIENTRAS sean del mismo tren (está por delante
+  de todas ellas, es su próxima llegada). Donde el ETA CAE bruscamente empieza
+  otro tren por delante. Así, recorriendo las estaciones en orden, cada tramo de
+  ETA creciente = un tren, con sus próximas paradas y tiempos.
+
+Cada tren emite una lista de "waypoints" [{d, eta}] (distancia sobre la vía y
+segundos hasta esa parada). El frontend interpola la posición viva con el reloj:
+el punto avanza por la vía cruzando estaciones de paso y solo se detiene el poco
+que marcan los propios tiempos (y en cabeceras, donde el tren espera a salir).
 """
 from __future__ import annotations
 
@@ -23,25 +27,21 @@ from statistics import median
 from .network import Network
 
 VEL_FALLBACK = 11.0
-SLACK = 1.25
 SEG_MIN, SEG_MAX = 20, 420
+CAIDA_MIN = 45  # s: caída de ETA que marca el cambio a otro tren por delante
 
 
 @dataclass
 class Tren:
     linea: int
     destino: str
+    color: str
     lat: float
     lng: float
-    prox_estacion_id: int
     prox_estacion: str
-    anterior_estacion: str
-    eta_seg: int
-    color: str
-    d_next: float
-    speed: float
-    sentido: int
-    t_seg: float
+    eta_seg: int          # a la próxima parada
+    waypoints: list        # [{"d":m, "eta":s}, ...] hacia delante
+    origen: bool           # True si está esperando en cabecera (parado)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -59,99 +59,106 @@ def _tramos_cerrados(net: Network) -> set[frozenset]:
 def estimar(net: Network, llegadas: list[tuple[int, int, str, int]]) -> list[Tren]:
     cerrados = _tramos_cerrados(net)
 
-    # índice de estación dentro del orden de cada línea comercial + nombre->id
-    idx = {}
-    nom2id = {}
+    idx = {}       # lid -> {station_id: pos en orden de vía}
+    dist = {}      # lid -> {station_id: distancia sobre la vía}
+    nom2id = {}    # lid -> {nombre: id}
+    orden_ids = {}  # lid -> [station_id...] por distancia ascendente
     for lid, lc in net.comerciales.items():
-        idx[lid] = {s: i for i, (_d, s) in enumerate(lc.orden)}
+        orden_ids[lid] = [s for _d, s in lc.orden]
+        idx[lid] = {s: i for i, s in enumerate(orden_ids[lid])}
+        dist[lid] = {s: d for d, s in lc.orden}
         nom2id[lid] = {net.estaciones[s].nombre.strip().lower(): s for _d, s in lc.orden}
 
-    # ---- tiempo de tramo (s) desde los ETAs, por pareja de estaciones ----
-    por_grupo: dict[tuple[int, str], list[tuple[float, int, int]]] = defaultdict(list)
+    # ETAs por (linea, destino) y por estación
+    grupos: dict[tuple[int, str], dict[int, int]] = defaultdict(dict)
     for est_id, linea, destino, eta in llegadas:
-        lc = net.comerciales.get(linea)
-        if lc and est_id in idx[linea]:
-            d = lc.station_dist(est_id)
-            por_grupo[(linea, destino)].append((d, est_id, eta))
+        if linea in idx and est_id in idx[linea]:
+            prev = grupos[(linea, destino)].get(est_id)
+            if prev is None or eta < prev:
+                grupos[(linea, destino)][est_id] = eta
 
+    # tiempo de tramo (s) por pareja de estaciones, de los propios ETAs
     muestras: dict[tuple[int, frozenset], list[int]] = defaultdict(list)
-    for (linea, _dest), items in por_grupo.items():
-        items.sort()
-        for (d0, s0, e0), (d1, s1, e1) in zip(items, items[1:]):
-            if idx[linea].get(s1, -9) - idx[linea].get(s0, 99) != 1:
-                continue
-            dt = abs(e1 - e0)
-            if SEG_MIN <= dt <= SEG_MAX:
-                muestras[(linea, frozenset((s0, s1)))].append(dt)
+    for (linea, _dest), etas in grupos.items():
+        seq = sorted(etas.items(), key=lambda kv: idx[linea][kv[0]])
+        for (s0, e0), (s1, e1) in zip(seq, seq[1:]):
+            if abs(idx[linea][s1] - idx[linea][s0]) == 1 and SEG_MIN <= abs(e1 - e0) <= SEG_MAX:
+                muestras[(linea, frozenset((s0, s1)))].append(abs(e1 - e0))
 
-    def t_tramo(linea, a, b, dist_m) -> float:
+    def segtime(linea, a, b):
         m = muestras.get((linea, frozenset((a, b))))
         if m:
             return float(median(m))
-        return dist_m / VEL_FALLBACK if dist_m else 60.0
-
-    # ---- tren inminente por (estacion, linea, destino) ----
-    minimos: dict[tuple[int, int, str], int] = {}
-    for est_id, linea, destino, eta in llegadas:
-        k = (est_id, linea, destino)
-        if k not in minimos or eta < minimos[k]:
-            minimos[k] = eta
+        d = abs(dist[linea][a] - dist[linea][b])
+        return d / VEL_FALLBACK if d else 60.0
 
     trenes: list[Tren] = []
-    for (est_id, linea, destino), eta in minimos.items():
-        lc = net.comerciales.get(linea)
-        if not lc or est_id not in idx[linea]:
-            continue
-        orden_ids = [s for _d, s in lc.orden]
-        i = idx[linea][est_id]
-        d_next = lc.station_dist(est_id)
-
-        # sentido: hacia el destino (por distancia sobre la vía)
+    for (linea, destino), etas in grupos.items():
+        lc = net.comerciales[linea]
+        # sentido: hacia el destino
         dest_sid = nom2id[linea].get(destino.strip().lower())
         if dest_sid is None:
-            # coincidencia parcial
             for nom, sid in nom2id[linea].items():
                 if destino.strip().lower() in nom or nom in destino.strip().lower():
                     dest_sid = sid
                     break
-        if dest_sid is not None and dest_sid != est_id:
-            sentido = 1 if lc.station_dist(dest_sid) > d_next else -1
-        elif i == len(orden_ids) - 1:
+        # estaciones con dato, en orden de RECORRIDO hacia el destino
+        seq = sorted(etas.items(), key=lambda kv: idx[linea][kv[0]])
+        if dest_sid is not None and dist[linea].get(dest_sid, 0) < (
+            dist[linea][seq[0][0]] if seq else 0
+        ):
+            seq = list(reversed(seq))
             sentido = -1
         else:
             sentido = 1
-
-        prev_i = i - sentido
-        if prev_i < 0 or prev_i >= len(orden_ids):
-            continue
-        prev_id = orden_ids[prev_i]
-        ea, eb = net.estaciones[prev_id], net.estaciones[est_id]
-        if frozenset((ea.nombre.lower(), eb.nombre.lower())) in cerrados:
+        if not seq:
             continue
 
-        d_prev = lc.station_dist(prev_id)
-        dist_m = abs(d_next - d_prev)
-        T = t_tramo(linea, prev_id, est_id, dist_m)
-        if T <= 0 or eta > T * SLACK:
-            continue
-        speed = dist_m / T if T else VEL_FALLBACK
-        d_live = d_next - sentido * speed * eta
-        lat, lng = lc.dist_to_latlng(d_live)
-        trenes.append(
-            Tren(
-                linea=linea,
-                destino=destino,
-                lat=lat,
-                lng=lng,
-                prox_estacion_id=est_id,
-                prox_estacion=eb.nombre,
-                anterior_estacion=ea.nombre,
-                eta_seg=eta,
-                color=lc.color,
-                d_next=round(d_next, 1),
-                speed=round(speed, 2),
-                sentido=sentido,
-                t_seg=round(T, 1),
-            )
-        )
+        # partir en trenes: un tramo de ETA creciente = un tren; caída = nuevo tren
+        runs: list[list[tuple[int, int]]] = [[]]
+        prev_eta = None
+        for s, e in seq:
+            if prev_eta is not None and e < prev_eta - CAIDA_MIN:
+                runs.append([])
+            runs[-1].append((s, e))
+            prev_eta = e
+
+        for run in runs:
+            if not run:
+                continue
+            s0, e0 = run[0]  # próxima parada de este tren
+            # estación anterior en el recorrido (de la que viene)
+            i0 = idx[linea][s0]
+            prev_i = i0 - sentido
+            waypoints = []
+            origen = False
+            if 0 <= prev_i < len(orden_ids[linea]):
+                prev_id = orden_ids[linea][prev_i]
+                ea, eb = net.estaciones[prev_id], net.estaciones[s0]
+                if frozenset((ea.nombre.lower(), eb.nombre.lower())) in cerrados:
+                    continue
+                st = segtime(linea, prev_id, s0)
+                seg_d = abs(dist[linea][s0] - dist[linea][prev_id])
+                speed = seg_d / st if st else VEL_FALLBACK
+                d_now = dist[linea][s0] - sentido * speed * e0
+                # no retroceder más allá de la estación anterior
+                lo, hi = sorted((dist[linea][prev_id], dist[linea][s0]))
+                d_now = max(lo, min(hi, d_now))
+                waypoints.append({"d": round(d_now, 1), "eta": 0})
+            else:
+                # sin estación anterior: en cabecera esperando salida
+                origen = True
+                waypoints.append({"d": round(dist[linea][s0], 1), "eta": 0})
+
+            for s, e in run:
+                waypoints.append({"d": round(dist[linea][s], 1), "eta": int(e),
+                                  "nom": net.estaciones[s].nombre})
+
+            lat, lng = lc.dist_to_latlng(waypoints[0]["d"])
+            trenes.append(Tren(
+                linea=linea, destino=destino, color=lc.color,
+                lat=lat, lng=lng,
+                prox_estacion=net.estaciones[s0].nombre, eta_seg=int(e0),
+                waypoints=waypoints, origen=origen,
+            ))
     return trenes
