@@ -41,6 +41,7 @@ else:
 
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "data" / "metro.db"
+CLIENT_FILE = ROOT / "data" / "last_client.txt"
 
 AJAX_URL = "https://www.metrovalencia.es/wp-admin/admin-ajax.php"
 HEADERS = {
@@ -50,9 +51,20 @@ HEADERS = {
     "Referer": "https://www.metrovalencia.es/ca/consulta-estaciones/",
     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
 }
-INTERVAL = 300         # segundos entre pasadas completas (Raspa mira Metrovalencia cada 5 min)
-REQ_PAUSE = 0.15       # pausa entre estaciones (cortesía con el servidor)
+INTERVAL = 300          # cadencia SIN clientes (5 min)
+INTERVAL_ACTIVO = 60    # cadencia CON cliente activo (1 min)
+CLIENTE_VENTANA = 130   # s: cliente "activo" si pidió datos hace menos de esto
+REQ_PAUSE = 0.15        # pausa entre estaciones (cortesía con el servidor)
 TIMEOUT = 15
+
+
+def cliente_activo() -> bool:
+    """True si algún cliente pidió datos hace poco (lo marca la API)."""
+    try:
+        ts = float(CLIENT_FILE.read_text(encoding="utf-8").strip())
+        return (time.time() - ts) < CLIENTE_VENTANA
+    except Exception:  # noqa: BLE001
+        return False
 
 
 SCHEMA = """
@@ -152,14 +164,21 @@ def main():
     if args.once:
         poll_once(con, session)
         return
+
+    idle = args.interval            # cadencia sin clientes (por defecto 300)
+    last_pull = 0.0
     while True:
-        t0 = time.time()
-        try:
-            poll_once(con, session)
-        except Exception as e:  # noqa: BLE001 - el bucle no debe morir
-            print("error en pasada:", e)
-        dt = time.time() - t0
-        time.sleep(max(1.0, args.interval - dt))
+        objetivo = INTERVAL_ACTIVO if cliente_activo() else idle
+        transcurrido = time.time() - last_pull
+        if transcurrido >= objetivo:
+            try:
+                poll_once(con, session)
+            except Exception as e:  # noqa: BLE001 - el bucle no debe morir
+                print("error en pasada:", e)
+            last_pull = time.time()
+        else:
+            # re-evalúa a menudo para reaccionar rápido cuando entra un cliente
+            time.sleep(min(15.0, objetivo - transcurrido + 0.1))
 
 
 if __name__ == "__main__":

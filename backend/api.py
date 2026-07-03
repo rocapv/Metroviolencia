@@ -27,8 +27,18 @@ ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "data" / "metro.db"
 WEB = ROOT / "web"
 TOKEN_FILE = ROOT / "data" / "token.txt"
+CLIENT_FILE = ROOT / "data" / "last_client.txt"  # señal de "hay cliente activo"
 
 app = FastAPI(title="Metroviolencia", version="0.1")
+
+
+def _touch_client() -> None:
+    """Marca que un cliente acaba de pedir datos (el poller usa esto para pasar
+    a cadencia rápida de 1 min; sin clientes vuelve a 5 min)."""
+    try:
+        CLIENT_FILE.write_text(str(int(time.time())), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _token() -> str:
@@ -120,6 +130,7 @@ def arrivals():
 
 @app.get("/api/trains")
 def trains():
+    _touch_client()   # hay cliente activo -> el poller irá a 1 min
     con = _con()
     snap = _last_snapshot(con)
     if not snap:
