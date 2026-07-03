@@ -16,6 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 NETWORK_JSON = ROOT / "data" / "network.json"
+SERVICE_JSON = ROOT / "data" / "service.json"
 
 _R = 6371000.0  # radio terrestre m
 _LAT0 = math.radians(39.47)  # latitud de referencia (Valencia) para el coseno
@@ -99,6 +100,10 @@ class Linea:
 class Network:
     def __init__(self, data: dict):
         self.colores: dict[str, str] = data["colores"]
+        # color por línea COMERCIAL (1..10); fallback a coloresLineas
+        self.colores_comercial: dict[str, str] = data.get(
+            "colores_comercial", {}
+        ) or data["colores"]
         self.estaciones: dict[int, Estacion] = {}
         for e in data["estaciones"]:
             if e["lat"] is None:
@@ -152,10 +157,20 @@ class Network:
         ln = self.lineas[lid]
         return [self.estaciones[s].nombre for _, s in ln.orden]
 
+    def cierres(self) -> list[dict]:
+        if not SERVICE_JSON.exists():
+            return []
+        try:
+            return json.loads(SERVICE_JSON.read_text(encoding="utf-8")).get("cierres", [])
+        except Exception:  # noqa: BLE001
+            return []
+
     def to_geojson_meta(self) -> dict:
         """Datos estáticos para el frontend."""
         return {
             "colores": self.colores,
+            "colores_comercial": self.colores_comercial,
+            "cierres": self.cierres(),
             "lineas": {
                 str(lid): {
                     "color": ln.color,

@@ -1,34 +1,30 @@
 """
-Estimador de posiciones de trenes (v2).
+Estimador de posiciones de trenes (v3).
 
-Entrada: llegadas por estación de un snapshot -> [(estacion_id, linea, destino, eta_seg)].
-Salida:  lista de trenes {linea, destino, lat, lng, prox_estacion, eta_seg}.
+Entrada: llegadas de un snapshot -> [(estacion_id, linea, destino, eta_seg)].
+Salida:  lista de trenes {linea, destino, lat, lng, prox_estacion, eta_seg, ...}.
 
-Modelo v2 — "tren inminente por tramo"
---------------------------------------
-Para cada estación S, línea L y sentido (destino D) tomamos la llegada de MENOR
-ETA: es el tren que está a punto de llegar a S. Ese tren se encuentra en el tramo
-[estación_anterior -> S] del recorrido. Lo situamos según su ETA:
+Modelo "tren inminente por tramo" (ver v2) con estas mejoras:
 
-    fracción_recorrida = 1 - eta / T_tramo        (0 = acaba de salir de la
-                                                    anterior, 1 = entrando en S)
-
-donde T_tramo = distancia(anterior, S) / velocidad. Si eta > T_tramo el tren aún
-no ha entrado en este tramo (será el tren inminente de la estación anterior), así
-que no se dibuja aquí: eso garantiza ~un punto por tramo ocupado y evita el doble
-conteo del mismo tren físico.
-
-El sentido se deduce del destino D: hacia qué extremo de la línea circula.
+  * Tiempo de recorrido POR TRAMO estimado de los propios datos: para cada línea
+    y sentido, la diferencia de ETA entre estaciones consecutivas del recorrido es
+    el tiempo real de ese tramo (incluye parada). Se agrega la mediana por tramo y
+    se usa en vez de una velocidad global -> posiciones mucho más fieles.
+  * Color por LÍNEA COMERCIAL (no por segmento de vía).
+  * Se omiten los tramos en obras/cerrados (data/service.json): no se dibujan
+    trenes fantasma en ellos.
 """
 from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, asdict
+from statistics import median
 
 from .network import Network
 
-VEL = 11.0          # m/s (~40 km/h) velocidad media asumida
-SLACK = 1.20        # margen sobre T_tramo antes de descartar el tren
+VEL_FALLBACK = 11.0     # m/s (~40 km/h) si un tramo no tiene muestras
+SLACK = 1.25            # margen sobre T_tramo antes de descartar el tren
+SEG_MIN, SEG_MAX = 20, 420   # rango plausible de tiempo de tramo (s) para muestrear
 
 
 @dataclass
@@ -63,7 +59,6 @@ def _chains(net: Network) -> dict[int, list[int]]:
             chains[lid] = sids
             continue
         pts = {s: net._xy_of(s) for s in sids}
-        # terminal = un extremo del par más separado
         ids = list(pts)
         term, dmax = ids[0], -1.0
         for i, a in enumerate(ids):
@@ -71,7 +66,6 @@ def _chains(net: Network) -> dict[int, list[int]]:
                 dd = _d(pts[a], pts[b])
                 if dd > dmax:
                     dmax, term = dd, a
-        # encadenado por vecino más próximo desde el terminal
         rest = set(pts)
         chain = [term]
         rest.discard(term)
@@ -86,12 +80,10 @@ def _chains(net: Network) -> dict[int, list[int]]:
 
 
 def _match_destino(net: Network, chain: list[int], destino: str) -> int | None:
-    """Índice en la chain de la estación destino (por nombre)."""
     d = destino.strip().lower()
     for i, s in enumerate(chain):
         if net.estaciones[s].nombre.strip().lower() == d:
             return i
-    # coincidencia parcial
     for i, s in enumerate(chain):
         n = net.estaciones[s].nombre.strip().lower()
         if d in n or n in d:
@@ -99,13 +91,49 @@ def _match_destino(net: Network, chain: list[int], destino: str) -> int | None:
     return None
 
 
+def _tramos_cerrados(net: Network) -> set[frozenset]:
+    """Pares de nombres de estación consecutivos que están cerrados."""
+    cerrados: set[frozenset] = set()
+    for c in net.cierres():
+        tramo = c.get("tramo", [])
+        for a, b in zip(tramo, tramo[1:]):
+            cerrados.add(frozenset((a.strip().lower(), b.strip().lower())))
+    return cerrados
+
+
 def estimar(net: Network, llegadas: list[tuple[int, int, str, int]]) -> list[Tren]:
     chains = _chains(net)
     idx_en_chain = {
         lid: {s: i for i, s in enumerate(chain)} for lid, chain in chains.items()
     }
+    cerrados = _tramos_cerrados(net)
 
-    # tren inminente por (estacion, linea, destino) = menor ETA
+    # ---- 1) muestrear tiempo de tramo (s) a partir de los ETAs ----
+    # por (linea, destino): estaciones ordenadas por índice de chain, Δeta entre
+    # consecutivas del recorrido -> tiempo de ese tramo.
+    por_grupo: dict[tuple[int, str], list[tuple[int, int, int]]] = defaultdict(list)
+    for est_id, linea, destino, eta in llegadas:
+        if linea in idx_en_chain and est_id in idx_en_chain[linea]:
+            por_grupo[(linea, destino)].append((idx_en_chain[linea][est_id], est_id, eta))
+
+    muestras_tramo: dict[tuple[int, frozenset], list[int]] = defaultdict(list)
+    for (linea, _destino), items in por_grupo.items():
+        items.sort()  # por índice de recorrido
+        for (i0, s0, e0), (i1, s1, e1) in zip(items, items[1:]):
+            if abs(i1 - i0) != 1:
+                continue  # no son estaciones adyacentes en el recorrido
+            dt = abs(e1 - e0)
+            if SEG_MIN <= dt <= SEG_MAX:
+                muestras_tramo[(linea, frozenset((s0, s1)))].append(dt)
+
+    def t_tramo(linea, a_id, b_id) -> float:
+        key = (linea, frozenset((a_id, b_id)))
+        m = muestras_tramo.get(key)
+        if m:
+            return float(median(m))
+        return _d(net._xy_of(a_id), net._xy_of(b_id)) / VEL_FALLBACK
+
+    # ---- 2) tren inminente por (estacion, linea, destino) ----
     minimos: dict[tuple[int, int, str], int] = {}
     for est_id, linea, destino, eta in llegadas:
         k = (est_id, linea, destino)
@@ -119,29 +147,27 @@ def estimar(net: Network, llegadas: list[tuple[int, int, str, int]]) -> list[Tre
             continue
         i = idx_en_chain[linea][est_id]
         dest_idx = _match_destino(net, chain, destino)
-        # sentido: hacia el destino. anterior = estación previa en ese sentido.
         if dest_idx is not None and dest_idx == i:
-            # S es el propio destino (terminal): el tren llega desde el lado interior
             paso = -1 if i == len(chain) - 1 else 1
             prev_i = i - paso
         elif dest_idx is not None:
             paso = 1 if dest_idx > i else -1
             prev_i = i - paso
         else:
-            # destino desconocido: asume que viene del vecino de mayor índice
             prev_i = i - 1 if i > 0 else i + 1
-
         if prev_i < 0 or prev_i >= len(chain):
             continue
+
         prev_id = chain[prev_i]
-        seg = _d(net._xy_of(prev_id), net._xy_of(est_id))
-        if seg <= 0:
-            continue
-        t_tramo = seg / VEL
-        if eta > t_tramo * SLACK:
-            continue  # aún no está en este tramo
-        frac = max(0.0, min(1.0, 1.0 - eta / t_tramo))
         ea, eb = net.estaciones[prev_id], net.estaciones[est_id]
+        # tramo cerrado -> no dibujar
+        if frozenset((ea.nombre.lower(), eb.nombre.lower())) in cerrados:
+            continue
+
+        T = t_tramo(linea, prev_id, est_id)
+        if T <= 0 or eta > T * SLACK:
+            continue
+        frac = max(0.0, min(1.0, 1.0 - eta / T))
         lat = ea.lat + frac * (eb.lat - ea.lat)
         lng = ea.lng + frac * (eb.lng - ea.lng)
         trenes.append(
@@ -155,7 +181,7 @@ def estimar(net: Network, llegadas: list[tuple[int, int, str, int]]) -> list[Tre
                 anterior_estacion=ea.nombre,
                 eta_seg=eta,
                 frac=round(frac, 3),
-                color=net.lineas[linea].color if linea in net.lineas else "888888",
+                color=net.colores_comercial.get(str(linea), "888888"),
             )
         )
     return trenes

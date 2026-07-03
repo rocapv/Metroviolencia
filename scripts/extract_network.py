@@ -66,6 +66,10 @@ def main() -> int:
 
     colores = data.get("coloresLineas", {})
     lineas_raw = data.get("lineas", {})
+
+    # colores por LÍNEA COMERCIAL (1..10) — vienen en infoEstaciones[].lineas[].color,
+    # NO en coloresLineas (que está indexado por segmento de vía interno).
+    colores_comercial: dict[str, str] = {}
     lineas = {
         lid: [[p["lat"], p["lng"]] for p in pts]
         for lid, pts in lineas_raw.items()
@@ -90,6 +94,10 @@ def main() -> int:
         lineas_ids = sorted(
             {int(l["id"]) for l in (val.get("lineas") or []) if str(l.get("id", "")).isdigit()}
         )
+        for l in val.get("lineas") or []:
+            lid = str(l.get("id", ""))
+            if lid.isdigit() and l.get("color"):
+                colores_comercial.setdefault(lid, l["color"])
         estaciones.append(
             {
                 "id": sid,
@@ -103,6 +111,7 @@ def main() -> int:
 
     out = {
         "colores": colores,
+        "colores_comercial": colores_comercial,
         "lineas": lineas,
         "estaciones": estaciones,
         "_meta": {

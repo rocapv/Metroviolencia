@@ -50,7 +50,9 @@ function etaViu(tren) {
 /* ---------- xarxa ---------- */
 async function cargarRed() {
   const net = await (await fetch(API + "api/network")).json();
-  colores = net.colores || {};
+  // colors de LÍNIA COMERCIAL (per a llegenda, xips i trens). Els traçats de via
+  // es pinten amb el seu color de segment (net.lineas[].color), que ja és correcte.
+  colores = net.colores_comercial || net.colores || {};
 
   for (const [, info] of Object.entries(net.lineas)) {
     if (!info.path || info.path.length < 2) continue;
@@ -59,7 +61,9 @@ async function cargarRed() {
     }).addTo(map);
   }
 
+  const porNom = {};
   for (const e of net.estaciones) {
+    porNom[e.nombre] = e;
     const m = L.circleMarker([e.lat, e.lng], {
       radius: 3.2, color: "#fff", weight: 1, fillColor: "#111", fillOpacity: 1,
     }).addTo(map);
@@ -70,9 +74,35 @@ async function cargarRed() {
     m.on("click", () => obrirPopupEstacio(m));
   }
 
+  dibuixarCierres(net.cierres || [], porNom);
+
   const lineas = Object.keys(colores).map(Number)
     .filter((n) => n >= 1 && n <= 10).sort((a, b) => a - b);
   construirLeyenda(lineas);
+}
+
+// Trams tallats: traçat discontinu gris damunt del corredor + avís al HUD.
+function dibuixarCierres(cierres, porNom) {
+  const av = document.getElementById("avisos");
+  av.innerHTML = "";
+  for (const c of cierres) {
+    const pts = (c.tramo || []).map((n) => porNom[n]).filter(Boolean)
+      .map((e) => [e.lat, e.lng]);
+    if (pts.length >= 2) {
+      L.polyline(pts, {
+        color: "#7a7a86", weight: 5, opacity: 0.9, dashArray: "2 9",
+        lineCap: "round",
+      }).addTo(map).bindTooltip(c.nota || "Tram tallat", { sticky: true });
+      for (const p of pts) {
+        L.circleMarker(p, { radius: 4, color: "#7a7a86", weight: 2,
+          fillColor: "#1a1a22", fillOpacity: 1 }).addTo(map);
+      }
+    }
+    const div = document.createElement("div");
+    div.className = "aviso";
+    div.innerHTML = `⚠️ ${c.nota || "Tram tallat"}`;
+    av.appendChild(div);
+  }
 }
 
 function construirLeyenda(lineas) {

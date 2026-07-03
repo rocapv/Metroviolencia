@@ -1,0 +1,11 @@
+{
+  "cierres": [
+    {
+      "id": "alameda-maritim-2026",
+      "lineas": [5, 7],
+      "tramo": ["Alameda", "Aragó", "Amistat", "Ayora", "Marítim"],
+      "hasta": "2026-09-01",
+      "nota": "Tram Alameda–Marítim tallat per obres fins setembre"
+    }
+  ]
+}
