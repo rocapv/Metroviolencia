@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=roca
 WorkingDirectory=/home/roca/Metroviolencia
-ExecStart=/home/roca/Metroviolencia/.venv/bin/python -m backend.poller --interval 30
+ExecStart=/home/roca/Metroviolencia/.venv/bin/python -m backend.poller --interval 60
 Restart=always
 RestartSec=10
 

@@ -50,7 +50,7 @@ HEADERS = {
     "Referer": "https://www.metrovalencia.es/ca/consulta-estaciones/",
     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
 }
-INTERVAL = 30          # segundos entre pasadas completas
+INTERVAL = 60          # segundos entre pasadas completas (pull cada minuto)
 REQ_PAUSE = 0.15       # pausa entre estaciones (cortesía con el servidor)
 TIMEOUT = 15
 
