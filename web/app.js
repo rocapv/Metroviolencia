@@ -368,11 +368,20 @@ function pintarTrenes(trenes) {
     if (!lineasVisibles.has(t.linea)) continue;
     const ll = posicioViva(t);
     let best = null, bestD = Infinity;
-    for (const e of previos) {
-      if (e.usado || e.tren.linea !== t.linea || e.tren.destino !== t.destino) continue;
-      const p = e.marker.getLatLng();
-      const dd = Math.hypot((p.lat - ll[0]) * 111000, (p.lng - ll[1]) * 85000);
-      if (dd < bestD) { bestD = dd; best = e; }
+    // 1r: emparella pel track_id persistent (mateix tren físic entre pulls)
+    if (t.id != null) {
+      for (const e of previos) {
+        if (!e.usado && e.tren.id === t.id) { best = e; bestD = 0; break; }
+      }
+    }
+    // 2n (sense id o no trobat): heurística per proximitat, mateixa línia+destí
+    if (!best) {
+      for (const e of previos) {
+        if (e.usado || e.tren.linea !== t.linea || e.tren.destino !== t.destino) continue;
+        const p = e.marker.getLatLng();
+        const dd = Math.hypot((p.lat - ll[0]) * 111000, (p.lng - ll[1]) * 85000);
+        if (dd < bestD) { bestD = dd; best = e; }
+      }
     }
     if (best && bestD < 1500) {   // mateix tren físic: reaprofita el marcador
       best.usado = true; best.tren = t;
@@ -440,8 +449,9 @@ function popupTren(t) {
   const c = "#" + (t.color || "888");
   const p = proxParada(t);
   const espera = t.origen ? ' <span style="color:#e8c07a">(en eixida)</span>' : "";
+  const idTxt = t.id != null ? ` <span style="color:#6a6a7a">#${t.id}</span>` : "";
   return `<span class="pop-linea" style="background:${c}">${NOMBRES_LINEA[t.linea] || "L" + t.linea}</span>
-    → <b>${t.destino}</b>${espera}<br>
+    → <b>${t.destino}</b>${idTxt}${espera}<br>
     <span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>`;
 }
 

@@ -11,6 +11,7 @@ Sirve además el frontend estático de ../web en la raíz.
 """
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import time
@@ -138,10 +139,43 @@ def arrivals():
             "estaciones": por_est}
 
 
+def _noinfo(con, snap_id: int) -> list:
+    try:
+        return [r["linea"] for r in con.execute(
+            "SELECT linea FROM noinfo WHERE snapshot_id=? ORDER BY linea", (snap_id,)
+        ).fetchall()]
+    except sqlite3.OperationalError:
+        return []  # tabla aún no creada
+
+
 @app.get("/api/trains")
 def trains():
     _touch_client()   # hay cliente activo -> el poller irá a 1 min
     con = _con()
+    # camino normal: el poller ya estimó y trackeó los trenes de la última pasada;
+    # devolvemos esos, con su `id` persistente (mismo tren entre pulls).
+    try:
+        row = con.execute(
+            "SELECT snapshot_id, ts FROM trenes ORDER BY snapshot_id DESC LIMIT 1"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        row = None  # tabla aún no creada (poller viejo)
+    if row is not None:
+        snap_id, ts = row["snapshot_id"], row["ts"]
+        trs = con.execute(
+            "SELECT track_id,linea,destino,color,lat,lng,prox_estacion,eta_seg,"
+            "origen,waypoints FROM trenes WHERE snapshot_id=?", (snap_id,)
+        ).fetchall()
+        trenes = [{
+            "id": r["track_id"], "linea": r["linea"], "destino": r["destino"],
+            "color": r["color"], "lat": r["lat"], "lng": r["lng"],
+            "prox_estacion": r["prox_estacion"], "eta_seg": r["eta_seg"],
+            "origen": bool(r["origen"]), "waypoints": json.loads(r["waypoints"]),
+        } for r in trs]
+        return {"ts": ts, "edad_seg": int(time.time()) - ts,
+                "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap_id)}
+
+    # fallback (DB sin tracking aún): estima al vuelo, sin identidad persistente
     snap = _last_snapshot(con)
     if not snap:
         return {"ts": None, "trenes": []}
@@ -152,14 +186,8 @@ def trains():
     llegadas = [(r["estacion_id"], r["linea"], r["destino"], r["eta_seg"]) for r in rows]
     net = load_network()
     trenes = [t.to_dict() for t in estimar(net, llegadas)]
-    try:
-        noinfo = [r["linea"] for r in con.execute(
-            "SELECT linea FROM noinfo WHERE snapshot_id=? ORDER BY linea", (snap["id"],)
-        ).fetchall()]
-    except sqlite3.OperationalError:
-        noinfo = []  # tabla aún no creada
     return {"ts": snap["ts"], "edad_seg": int(time.time()) - snap["ts"],
-            "n": len(trenes), "trenes": trenes, "noinfo": noinfo}
+            "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap["id"])}
 
 
 @app.get("/api/health")

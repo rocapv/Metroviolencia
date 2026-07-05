@@ -13,6 +13,7 @@ Tablas SQLite (data/metro.db):
 from __future__ import annotations
 
 import argparse
+import json
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +23,8 @@ import requests
 
 from .network import load_network
 from .parser import parse_arrivals
+from .positions import estimar
+from .tracking import track
 
 # El certificado de metrovalencia.es llega con la cadena incompleta (falta el
 # intermedio de Sectigo). Estrategia de verificación TLS, por orden:
@@ -97,6 +100,28 @@ CREATE TABLE IF NOT EXISTS noinfo (
     linea       INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_noinfo_ts ON noinfo(linea, ts);
+
+-- Trenes físicos estimados y con IDENTIDAD persistente (track_id) entre pulls.
+-- Se rellena una vez por pasada (tracking.track). track_id sigue al mismo tren
+-- de un snapshot al siguiente aunque la fuente no numere los trenes; con el
+-- histórico (track_id, ts) se podrá calcular luego el delay vs horario.
+CREATE TABLE IF NOT EXISTS trenes (
+    snapshot_id   INTEGER NOT NULL,
+    ts            INTEGER NOT NULL,
+    track_id      INTEGER NOT NULL,
+    linea         INTEGER NOT NULL,
+    destino       TEXT    NOT NULL,
+    color         TEXT,
+    lat           REAL,
+    lng           REAL,
+    prox_estacion TEXT,
+    eta_seg       INTEGER,
+    origen        INTEGER,
+    d             REAL,
+    waypoints     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_trenes_snap  ON trenes(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_trenes_track ON trenes(track_id, ts);
 """
 
 # Líneas de METRO con tiempo real en la fuente. Si alguna no aparece en una
@@ -171,10 +196,58 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
     if ni:
         con.executemany("INSERT INTO noinfo(snapshot_id,ts,linea) VALUES (?,?,?)", ni)
     con.commit()
+
+    # TRACKING: estima los trenes físicos de esta pasada y les da identidad
+    # persistente (track_id), siguiéndolos desde el snapshot anterior.
+    n_tr = track_snapshot(con, net, snap_id, ts, rows)
+
     faltan = ", ".join(f"L{l}" for _s, _t, l in ni) or "-"
     print(f"[{time.strftime('%H:%M:%S')}] snapshot {snap_id}: "
-          f"{ok}/{len(net.estaciones)} estaciones, {len(rows)} llegadas, NoInfo: {faltan}")
+          f"{ok}/{len(net.estaciones)} estaciones, {len(rows)} llegadas, "
+          f"{n_tr} trenes, NoInfo: {faltan}")
     return snap_id
+
+
+def track_snapshot(con: sqlite3.Connection, net, snap_id: int, ts: int, rows: list) -> int:
+    """Estima los trenes de esta pasada y les asigna track_id persistente,
+    emparejándolos con los del snapshot anterior. Persiste en la tabla `trenes`.
+    Devuelve el nº de trenes emitidos."""
+    # rows = (snap_id, ts, sid, linea, destino, eta_seg, eta_txt, ocupacion)
+    llegadas = [(r[2], r[3], r[4], r[5]) for r in rows]
+    curr = estimar(net, llegadas)
+
+    # snapshot anterior CON trenes (el estado de seguimiento vive en la propia tabla)
+    prev_row = con.execute(
+        "SELECT snapshot_id, ts FROM trenes ORDER BY snapshot_id DESC LIMIT 1"
+    ).fetchone()
+    prev, dt = [], 0.0
+    if prev_row:
+        psnap, pts = prev_row[0], prev_row[1]
+        dt = float(ts - pts)
+        for r in con.execute(
+            "SELECT track_id,linea,destino,waypoints FROM trenes WHERE snapshot_id=?",
+            (psnap,),
+        ):
+            prev.append({"track_id": r[0], "linea": r[1], "destino": r[2],
+                         "waypoints": json.loads(r[3])})
+    next_id = con.execute(
+        "SELECT COALESCE(MAX(track_id),0)+1 FROM trenes"
+    ).fetchone()[0]
+
+    ids, _ = track(curr, prev, dt, next_id)
+    filas = []
+    for i, t in enumerate(curr):
+        d0 = t.waypoints[0]["d"] if t.waypoints else None
+        filas.append((snap_id, ts, ids[i], t.linea, t.destino, t.color, t.lat, t.lng,
+                      t.prox_estacion, t.eta_seg, 1 if t.origen else 0, d0,
+                      json.dumps(t.waypoints)))
+    con.executemany(
+        "INSERT INTO trenes(snapshot_id,ts,track_id,linea,destino,color,lat,lng,"
+        "prox_estacion,eta_seg,origen,d,waypoints) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        filas,
+    )
+    con.commit()
+    return len(filas)
 
 
 def main():
