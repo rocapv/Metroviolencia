@@ -39,48 +39,63 @@ def predict_d(waypoints: list, tau: float):
     return wp[-1]["d"]   # ha llegado al final de su trayectoria conocida
 
 
-def _gate(dt: float) -> float:
-    """Puerta de distancia (m) para aceptar un emparejamiento: crece con el
-    intervalo entre pulls (a 1 min ~580 m; a 5 min ~1300 m)."""
-    return 400.0 + 3.0 * max(0.0, dt)
+def _tol(dt: float) -> float:
+    """Tolerancia (m) sobre el intervalo plausible: sólo cubre el ruido del
+    estimador y el error de predicción (NO el desplazamiento del tren, que ya
+    está dentro del intervalo). Crece un poco con Δt."""
+    return 200.0 + 0.5 * max(0.0, dt)
 
 
-def _alinear(pred: list, curr_d: list, dt: float) -> list:
-    """Alineamiento óptimo que preserva el orden entre trenes previstos (`pred`,
-    lista de distancias previstas) y actuales (`curr_d`, distancias actuales),
-    minimizando la suma de |pred-actual| de los emparejados. Devuelve una lista
-    del tamaño de curr_d con el índice de `pred` casado, o None si es nuevo.
+def _coste(lo: float, hi: float, cd: float) -> float:
+    """Distancia del punto actual `cd` al intervalo plausible [lo,hi] (0 dentro).
+    El tren pudo moverse entre 0 y v·Δt según cuándo refrescó la fuente, así que
+    su posición actual debería caer dentro de ese intervalo."""
+    if cd < lo:
+        return lo - cd
+    if cd > hi:
+        return cd - hi
+    return 0.0
 
-    DP tipo alineamiento de secuencias: casar cuesta la distancia (si <= GATE);
-    saltar (tren que se va / tren nuevo) cuesta GATE. Así se prefiere casar
-    siempre que caiga dentro de la puerta y no rompa el orden."""
-    n, m = len(pred), len(curr_d)
-    gate = _gate(dt)
+
+def _alinear(pred_rangos: list, curr_d: list, dt: float) -> list:
+    """Alineamiento óptimo que preserva el orden entre los INTERVALOS previstos
+    de los trenes anteriores (`pred_rangos` = lista de (lo,hi)) y las posiciones
+    actuales (`curr_d`), minimizando la suma de distancias-al-intervalo de los
+    emparejados. Devuelve una lista del tamaño de curr_d con el índice de
+    `pred_rangos` casado, o None si es un tren nuevo.
+
+    DP tipo alineamiento de secuencias: casar cuesta la distancia-al-intervalo
+    (si <= TOL); saltar (tren que se va / tren nuevo) cuesta TOL. Se prefiere
+    casar siempre que caiga dentro de la tolerancia y no rompa el orden."""
+    n, m = len(pred_rangos), len(curr_d)
+    tol = _tol(dt)
     INF = float("inf")
+
+    def cm(i, j):  # coste de casar pred_rangos[i] con curr_d[j]
+        c = _coste(pred_rangos[i][0], pred_rangos[i][1], curr_d[j])
+        return c if c <= tol else INF
+
     # dp[i][j] = coste mínimo alineando pred[:i] con curr[:j]
     dp = [[0.0] * (m + 1) for _ in range(n + 1)]
     for i in range(1, n + 1):
-        dp[i][0] = dp[i - 1][0] + gate       # todos los previstos sin casar
+        dp[i][0] = dp[i - 1][0] + tol        # todos los previstos sin casar
     for j in range(1, m + 1):
-        dp[0][j] = dp[0][j - 1] + gate       # todos los actuales sin casar
+        dp[0][j] = dp[0][j - 1] + tol        # todos los actuales sin casar
     for i in range(1, n + 1):
         for j in range(1, m + 1):
-            cost_match = abs(pred[i - 1] - curr_d[j - 1])
-            match = dp[i - 1][j - 1] + (cost_match if cost_match <= gate else INF)
-            skip_p = dp[i - 1][j] + gate
-            skip_c = dp[i][j - 1] + gate
-            dp[i][j] = min(match, skip_p, skip_c)
+            dp[i][j] = min(dp[i - 1][j - 1] + cm(i - 1, j - 1),
+                           dp[i - 1][j] + tol,
+                           dp[i][j - 1] + tol)
     # backtrack
     asig = [None] * m
     i, j = n, m
     while i > 0 and j > 0:
-        cost_match = abs(pred[i - 1] - curr_d[j - 1])
-        match = dp[i - 1][j - 1] + (cost_match if cost_match <= gate else INF)
-        if match <= dp[i - 1][j] + gate and match <= dp[i][j - 1] + gate and match < INF:
+        match = dp[i - 1][j - 1] + cm(i - 1, j - 1)
+        if match <= dp[i - 1][j] + tol and match <= dp[i][j - 1] + tol and match < INF:
             asig[j - 1] = i - 1
             i -= 1
             j -= 1
-        elif dp[i - 1][j] + gate <= dp[i][j - 1] + gate:
+        elif dp[i - 1][j] + tol <= dp[i][j - 1] + tol:
             i -= 1
         else:
             j -= 1
@@ -110,22 +125,30 @@ def track(curr: list, prev: list, dt: float, next_id: int):
 
     for key, cidx in curr_by.items():
         P = prev_by.get(key, [])
-        # previstos: (d_previsto, track_id), ordenados por d
-        pred_pairs = []
+        # previstos: intervalo plausible [d_viejo, d_predicho] + track_id.
+        # El tren pudo moverse entre 0 (fuente sin refrescar) y v·Δt (refresco
+        # completo) desde el pull anterior; su posición actual cae en ese rango.
+        pred_entries = []
         for p in P:
-            pd = predict_d(p["waypoints"], dt)
-            if pd is not None:
-                pred_pairs.append((pd, p["track_id"]))
-        pred_pairs.sort(key=lambda x: x[0])
+            wp = p.get("waypoints") or []
+            if not wp:
+                continue
+            d0 = wp[0]["d"]
+            pd = predict_d(wp, dt)
+            if pd is None:
+                pd = d0
+            lo, hi = (d0, pd) if d0 <= pd else (pd, d0)
+            pred_entries.append((lo, hi, p["track_id"]))
+        pred_entries.sort(key=lambda e: (e[0] + e[1]) / 2.0)
         # actuales de este grupo, ordenados por d (posición actual)
         cidx_sorted = sorted(cidx, key=lambda i: curr[i].waypoints[0]["d"])
-        pred_d = [pp[0] for pp in pred_pairs]
+        pred_rangos = [(e[0], e[1]) for e in pred_entries]
         curr_d = [curr[i].waypoints[0]["d"] for i in cidx_sorted]
-        asig = _alinear(pred_d, curr_d, dt)
+        asig = _alinear(pred_rangos, curr_d, dt)
         for k, i in enumerate(cidx_sorted):
             pi = asig[k]
             if pi is not None:
-                ids[i] = pred_pairs[pi][1]
+                ids[i] = pred_entries[pi][2]
 
     for i in range(len(curr)):
         if ids[i] is None:
