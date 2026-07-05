@@ -23,3 +23,5 @@ apk/debug.keystore
 apk/icon_preview.png
 
 data/last_client.txt
+
+data/open_until.txt

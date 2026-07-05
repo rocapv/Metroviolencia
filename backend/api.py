@@ -28,6 +28,7 @@ DB = ROOT / "data" / "metro.db"
 WEB = ROOT / "web"
 TOKEN_FILE = ROOT / "data" / "token.txt"
 CLIENT_FILE = ROOT / "data" / "last_client.txt"  # señal de "hay cliente activo"
+OPEN_FILE = ROOT / "data" / "open_until.txt"      # ventana temporal SIN token
 
 app = FastAPI(title="Metroviolencia", version="0.1")
 
@@ -58,6 +59,15 @@ def _is_lan(ip: str) -> bool:
     )
 
 
+def _open_now() -> bool:
+    """Ventana temporal en la que NO se exige token (ni siquiera desde fuera).
+    Caduca sola cuando pasa el instante guardado en data/open_until.txt."""
+    try:
+        return time.time() < float(OPEN_FILE.read_text(encoding="utf-8").strip())
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _client_ip(request: Request) -> str:
     # Apache (mod_proxy) AÑADE la IP real al final de X-Forwarded-For; el último
     # valor es el que vio Apache = cliente real (no falsificable por el cliente).
@@ -74,8 +84,8 @@ async def auth_token(request: Request, call_next):
     La APK abre .../?token=XXX una vez; se fija la cookie y el resto de
     peticiones (app.js, /api/...) van autenticadas."""
     q = request.query_params.get("token")
-    if _is_lan(_client_ip(request)):
-        resp = await call_next(request)   # LAN: acceso libre
+    if _is_lan(_client_ip(request)) or _open_now():
+        resp = await call_next(request)   # LAN o ventana temporal abierta: sin token
     else:
         token = _token()
         ok = bool(token) and (q == token or request.cookies.get("mvtoken") == token)
