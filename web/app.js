@@ -376,7 +376,10 @@ function pintarTrenes(trenes) {
     }
     if (best && bestD < 1500) {   // mateix tren físic: reaprofita el marcador
       best.usado = true; best.tren = t;
-      best.marker.setLatLng(ll);
+      // manté el desplaçament de cua ja aplicat (evita saltar cada refresc)
+      const sh = best.colaShift || 0;
+      const dEff = distVivaTren(t) - dirTren(t) * sh;
+      best.marker.setLatLng(distToLatLng(t.linea, dEff) || ll);
       best.marker.setPopupContent(popupTren(t));
     } else {
       const marker = L.marker(ll, { icon: iconoTren(t) }).bindPopup(popupTren(t));
@@ -442,13 +445,74 @@ function popupTren(t) {
     <span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>`;
 }
 
+/* ---------- posar en fila els trens que comparteixen via ---------- */
+// Dues línies comercials poden compartir la MATEIXA via física entre estacions
+// (p. ex. L3/L5 al ramal de l'Aeroport, L2/L7 cap a Torrent, el nucli L3/L5/L7/L9).
+// El dibuix les separa lateralment per veure els dos colors (offsetCorredores),
+// però dos trens no poden ocupar el mateix punt d'una via: si estan molt pròxims
+// i van en la MATEIXA direcció, reculem el de darrere pel seu propi raïl fins
+// deixar un headway mínim -> queden EN FILA, mai costat a costat.
+const COLA_MIN_SEP = 110;    // m mínims entre dos trens a la mateixa via compartida
+const COLA_MAX_SHIFT = 260;  // m màxims que reculem un tren (no passar-se de tram)
+const COLA_STEP = 18;        // m per frame cap al desplaçament objectiu (suavitzat)
+
+function metresEntre(a, b) {
+  return Math.hypot((a[0] - b[0]) * 111000, (a[1] - b[1]) * 85000);
+}
+// vector unitari (en metres) del rumb del tren a la distància d sobre la via
+function headingVec(t, d) {
+  const dir = dirTren(t);
+  const a = distToLatLng(t.linea, d), b = distToLatLng(t.linea, d + dir * 30);
+  if (!a || !b) return [0, 0];
+  const vx = (b[0] - a[0]) * 111000, vy = (b[1] - a[1]) * 85000;
+  const L = Math.hypot(vx, vy) || 1;
+  return [vx / L, vy / L];
+}
+// calcula per a cada tren el desplaçament (m enrere) que el separa dels altres
+// de la mateixa via; només toca al de DARRERE, el davanter es queda al seu lloc.
+function resolveColas(items) {
+  for (let pass = 0; pass < 5; pass++) {
+    let mogut = false;
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        const A = items[i], B = items[j];
+        if (A.t.linea === B.t.linea) continue;                 // mateixa línia: ja van en fila
+        if (A.h[0] * B.h[0] + A.h[1] * B.h[1] < 0.5) continue;  // sentits distints: doble via, ok
+        const pA = distToLatLng(A.t.linea, A.d - A.dir * A.shift);
+        const pB = distToLatLng(B.t.linea, B.d - B.dir * B.shift);
+        if (!pA || !pB) continue;
+        const gap = metresEntre(pA, pB);
+        if (gap >= COLA_MIN_SEP) continue;
+        // qui va darrere? projecció del vector A->B sobre el rumb mitjà
+        const hx = A.h[0] + B.h[0], hy = A.h[1] + B.h[1];
+        const proj = ((pB[0] - pA[0]) * 111000) * hx + ((pB[1] - pA[1]) * 85000) * hy;
+        const darrere = proj > 0 ? A : (proj < 0 ? B : (A.t.linea < B.t.linea ? A : B));
+        const nou = Math.min(COLA_MAX_SHIFT, darrere.shift + (COLA_MIN_SEP - gap));
+        if (nou > darrere.shift + 0.5) { darrere.shift = nou; mogut = true; }
+      }
+    }
+    if (!mogut) break;
+  }
+}
+
 /* ---------- animació contínua sobre la via ---------- */
 function animar() {
+  // 1) estat viu de cada tren visible (distància sobre la via, direcció, rumb)
+  const items = [];
   for (const e of marcadores.values()) {
-    const t = e.tren;
-    const d = distVivaTren(t);
+    const d = distVivaTren(e.tren);
     if (d == null) continue;
-    e.marker.setLatLng(distToLatLng(t.linea, d) || [t.lat, t.lng]);
+    items.push({ e, t: e.tren, d, dir: dirTren(e.tren), h: headingVec(e.tren, d), shift: 0 });
+  }
+  // 2) posa en fila els trens de línies diferents que comparteixen via
+  resolveColas(items);
+  // 3) suavitza el desplaçament i pinta cada tren en la seua posició efectiva
+  for (const it of items) {
+    const e = it.e, t = it.t;
+    const prev = e.colaShift || 0;
+    e.colaShift = prev + Math.max(-COLA_STEP, Math.min(COLA_STEP, it.shift - prev));
+    const dEff = it.d - it.dir * e.colaShift;
+    e.marker.setLatLng(distToLatLng(t.linea, dEff) || [t.lat, t.lng]);
 
     // punt NOMÉS quan és un tren esperant en la seua capçalera d'origen;
     // qualsevol tren en trànsit (encara que arribe a una terminal) va amb fletxa
@@ -459,7 +523,7 @@ function animar() {
       const arr = el.querySelector(".tren-arrow");
       if (dot && arr) {
         if (movent) {
-          arr.style.transform = `rotate(${rumbPantalla(t, d)}deg)`;
+          arr.style.transform = `rotate(${rumbPantalla(t, dEff)}deg)`;
           arr.style.display = "block"; dot.style.display = "none";
         } else {
           arr.style.display = "none"; dot.style.display = "block";
