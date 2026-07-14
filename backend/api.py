@@ -173,6 +173,7 @@ def trains():
             "origen": bool(r["origen"]), "waypoints": json.loads(r["waypoints"]),
         } for r in trs]
         return {"ts": ts, "edad_seg": int(time.time()) - ts,
+                "srv_ms": int(time.time() * 1000),
                 "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap_id)}
 
     # fallback (DB sin tracking aún): estima al vuelo, sin identidad persistente
@@ -187,6 +188,7 @@ def trains():
     net = load_network()
     trenes = [t.to_dict() for t in estimar(net, llegadas)]
     return {"ts": snap["ts"], "edad_seg": int(time.time()) - snap["ts"],
+            "srv_ms": int(time.time() * 1000),
             "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap["id"])}
 
 

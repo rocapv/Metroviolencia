@@ -31,6 +31,15 @@ let lineLayers = {};               // lid -> [capes de via/connectors] per al to
 let porNomGlobal = {};             // nom estació -> objecte estació
 let arrivalsCache = { ts: 0, estaciones: {} };
 
+// Compensació de ping/rellotge: el servidor (Raspa) marca el temps dels trens amb
+// EL SEU rellotge (data.ts / srv_ms), però el client interpola amb el SEU. Si els
+// rellotges no coincideixen o hi ha latència de xarxa, tots els trens es desplacen.
+// Mesurem el round-trip (ping) i el desfàs de rellotge en cada refresc i corregim:
+// serverNow() = hora del servidor estimada al client (Date.now() + offset).
+let clockOffsetMs = 0;   // ms a sumar a Date.now() per obtenir l'hora de la Raspa
+let pingMs = 0;          // últim round-trip client↔Raspa (ms), suavitzat
+const serverNow = () => Date.now() + clockOffsetMs;
+
 const hex = (c) => (c && c.startsWith("#") ? c : "#" + (c || "888"));
 
 /* ---------- distància sobre la via -> (lat,lng) ---------- */
@@ -57,7 +66,7 @@ function fmtEta(seg) {
   if (m < 60) return `${m} min`;
   return `${Math.floor(m / 60)} h ${m % 60} min`;
 }
-const etaViu = (t) => Math.max(0, t.eta_seg - Math.max(0, Math.floor(Date.now() / 1000) - ultimoTs));
+const etaViu = (t) => Math.max(0, t.eta_seg - Math.max(0, Math.floor(serverNow() / 1000) - ultimoTs));
 
 /* Separa lateralment les línies de metro que comparteixen corredor (p. ex.
    L2+L7 Torrent–Torrent Av, o el nucli L5/L7/L9): desplaça cada línia perpendicular
@@ -335,7 +344,7 @@ function construirLeyenda(lineas) {
 function distVivaTren(t) {
   const wp = t.waypoints;
   if (!wp || !wp.length) return null;
-  const tau = Math.max(0, Math.floor(Date.now() / 1000) - ultimoTs);
+  const tau = Math.max(0, Math.floor(serverNow() / 1000) - ultimoTs);
   if (tau <= wp[0].eta) return wp[0].d;
   for (let i = 0; i < wp.length - 1; i++) {
     if (tau <= wp[i + 1].eta) {
@@ -352,7 +361,7 @@ function posicioViva(t) {
 }
 // pròxima parada viva (primer waypoint amb nom i eta > temps transcorregut)
 function proxParada(t) {
-  const tau = Math.max(0, Math.floor(Date.now() / 1000) - ultimoTs);
+  const tau = Math.max(0, Math.floor(serverNow() / 1000) - ultimoTs);
   for (const w of t.waypoints) if (w.nom && w.eta > tau) return { nom: w.nom, eta: w.eta - tau };
   const last = [...t.waypoints].reverse().find((w) => w.nom);
   return last ? { nom: last.nom, eta: 0 } : { nom: t.prox_estacion, eta: 0 };
@@ -429,7 +438,7 @@ function dirTren(t) {
 // velocitat instantània (m/s) segons el tram de trajectòria actiu; 0 = parat
 function velTren(t) {
   const wp = t.waypoints;
-  const tau = Math.max(0, Math.floor(Date.now() / 1000) - ultimoTs);
+  const tau = Math.max(0, Math.floor(serverNow() / 1000) - ultimoTs);
   let i = 0;
   while (i < wp.length - 1 && wp[i + 1].eta <= tau) i++;
   if (i >= wp.length - 1) return 0;            // ha arribat al final
@@ -559,7 +568,7 @@ async function obrirPopupEstacio(m) {
     `<div class="pop-arr-tit">Pròximes arribades</div>` +
     `<div class="pop-arr">carregant…</div>`;
   L.popup({ maxWidth: 300, minWidth: 230 }).setLatLng(m.getLatLng()).setContent(cont).openOn(map);
-  if (Date.now() / 1000 - arrivalsCache.ts > 20) {
+  if (serverNow() / 1000 - arrivalsCache.ts > 20) {
     try { arrivalsCache = await (await fetch(API + "api/arrivals?_=" + Date.now(), { cache: "no-store" })).json(); } catch (e) {}
   }
   pintarLlegadesPopup(cont.querySelector(".pop-arr"), m.estId);
@@ -567,7 +576,7 @@ async function obrirPopupEstacio(m) {
 
 function pintarLlegadesPopup(el, estId) {
   const arr = (arrivalsCache.estaciones || {})[estId] || [];
-  const passat = Math.max(0, Math.floor(Date.now() / 1000) - (arrivalsCache.ts || 0));
+  const passat = Math.max(0, Math.floor(serverNow() / 1000) - (arrivalsCache.ts || 0));
   if (!arr.length) { el.innerHTML = "<div class='pop-buida'>sense pròximes arribades</div>"; return; }
   el.innerHTML = arr.slice(0, 6).map((a) => {
     const c = "#" + (colores[a.linea] || "888");
@@ -593,16 +602,30 @@ function pintarNoinfo() {
 
 async function refrescar() {
   try {
+    const t0 = Date.now();
     const data = await (await fetch(API + "api/trains?_=" + Date.now(), { cache: "no-store" })).json();
+    const t1 = Date.now();
+    // ---- ping + desfàs de rellotge (client↔Raspa) ----
+    if (data.srv_ms) {
+      const rtt = t1 - t0;                       // round-trip d'aquesta petició
+      // el servidor va marcar srv_ms ~a meitat del viatge; la seua hora a t1 ≈ srv_ms + rtt/2
+      const mostra = (data.srv_ms + rtt / 2) - t1;   // offset a sumar a Date.now()
+      pingMs = pingMs === 0 ? rtt : pingMs * 0.7 + rtt * 0.3;   // sempre actualitza el ping (EMA)
+      // només actualitza l'offset amb mostres netes (descarta pics de latència que embruten el rellotge)
+      if (clockOffsetMs === 0 || rtt <= pingMs * 1.8 + 60) {
+        clockOffsetMs = clockOffsetMs === 0 ? mostra : clockOffsetMs * 0.75 + mostra * 0.25;
+      }
+    }
     ultimoTrenes = data.trenes || [];
-    ultimoTs = data.ts || Math.floor(Date.now() / 1000);
+    ultimoTs = data.ts || Math.floor(serverNow() / 1000);
     noinfo = data.noinfo || [];
     pintarTrenes(ultimoTrenes);
     pintarNoinfo();
     const edad = data.edad_seg == null ? "—" : data.edad_seg + " s";
     const ni = noinfo.length ? `<br><span style="color:#e8c07a">sense info: ${noinfo.map(l=>"L"+l).join(", ")}</span>` : "";
+    const ping = pingMs ? `<br><span style="opacity:.65">ping ${Math.round(pingMs)} ms</span>` : "";
     document.getElementById("stats").innerHTML =
-      `<b>${ultimoTrenes.length}</b> trens en directe<br>dades fa <b>${edad}</b>${ni}`;
+      `<b>${ultimoTrenes.length}</b> trens en directe<br>dades fa <b>${edad}</b>${ni}${ping}`;
   } catch (e) {
     document.getElementById("stats").textContent = "sense connexió amb el backend";
   }
@@ -612,7 +635,7 @@ function tickSegon() {
   document.getElementById("reloj").textContent = new Date().toLocaleTimeString("ca-ES");
   const arrEls = document.querySelectorAll(".pop-arr .arr-eta");
   if (arrEls.length) {
-    const passat = Math.max(0, Math.floor(Date.now() / 1000) - (arrivalsCache.ts || 0));
+    const passat = Math.max(0, Math.floor(serverNow() / 1000) - (arrivalsCache.ts || 0));
     arrEls.forEach((el) => { el.textContent = fmtEta(Math.max(0, parseInt(el.dataset.eta, 10) - passat)); });
   }
 }
