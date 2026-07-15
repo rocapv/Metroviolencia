@@ -40,6 +40,19 @@ let clockOffsetMs = 0;   // ms a sumar a Date.now() per obtenir l'hora de la Ras
 let pingMs = 0;          // últim round-trip client↔Raspa (ms), suavitzat
 const serverNow = () => Date.now() + clockOffsetMs;
 
+// Detecció de "tren congelat": la font de tramvia (L4/6/8/10) dóna ETAs
+// d'horari (estàtiques). El mateix tren torna pull rere pull amb el MATEIX d0,
+// però el client l'extrapola cap avant pels ETAs i, al refrescar, torna a d0:
+// és el "rollback" (avança i recula). Si el d0 del servidor no canvia entre
+// pulls, el marquem congelat i deixem d'extrapolar-lo (es queda quiet a d0).
+const histTren = new Map();   // track_id -> {d0, iguals, congelat}
+const FREEZE_TOL = 25;        // m: variació de d0 per baix de la qual és "el mateix"
+const trenCongelat = (t) => {
+  if (t.id == null) return false;
+  const h = histTren.get(t.id);
+  return !!(h && h.congelat);
+};
+
 const hex = (c) => (c && c.startsWith("#") ? c : "#" + (c || "888"));
 
 /* ---------- distància sobre la via -> (lat,lng) ---------- */
@@ -344,6 +357,7 @@ function construirLeyenda(lineas) {
 function distVivaTren(t) {
   const wp = t.waypoints;
   if (!wp || !wp.length) return null;
+  if (trenCongelat(t)) return wp[0].d;   // dades estàtiques: no extrapolar (evita el rollback)
   const tau = Math.max(0, Math.floor(serverNow() / 1000) - ultimoTs);
   if (tau <= wp[0].eta) return wp[0].d;
   for (let i = 0; i < wp.length - 1; i++) {
@@ -394,10 +408,8 @@ function pintarTrenes(trenes) {
     }
     if (best && bestD < 1500) {   // mateix tren físic: reaprofita el marcador
       best.usado = true; best.tren = t;
-      // manté el desplaçament de cua ja aplicat (evita saltar cada refresc)
-      const sh = best.colaShift || 0;
-      const dEff = distVivaTren(t) - dirTren(t) * sh;
-      best.marker.setLatLng(distToLatLng(t.linea, dEff) || ll);
+      // NO reposicionem ací: animar() suavitza la posició (e.dViz) cada frame,
+      // així no es produeix cap salt al refrescar (ni cap avant ni cap arrere).
       best.marker.setPopupContent(popupTren(t));
     } else {
       const marker = L.marker(ll, { icon: iconoTren(t) }).bindPopup(popupTren(t));
@@ -531,7 +543,15 @@ function animar() {
     const prev = e.colaShift || 0;
     e.colaShift = prev + Math.max(-COLA_STEP, Math.min(COLA_STEP, it.shift - prev));
     const dEff = it.d - it.dir * e.colaShift;
-    e.marker.setLatLng(distToLatLng(t.linea, dEff) || [t.lat, t.lng]);
+    // suavitzat de posició: e.dViz s'acosta a dEff cada frame. Elimina qualsevol
+    // salt residual (p. ex. la 1a vegada que un tren es detecta congelat i cal
+    // corregir cap arrere) fent-lo un lliscament continu en compte d'un bot.
+    if (e.dViz == null) e.dViz = dEff;
+    const gap = dEff - e.dViz, ag = Math.abs(gap);
+    if (ag <= 8) e.dViz = dEff;
+    else e.dViz += Math.sign(gap) * Math.min(ag, Math.max(8, ag * 0.30));
+    const dViz = e.dViz;
+    e.marker.setLatLng(distToLatLng(t.linea, dViz) || [t.lat, t.lng]);
 
     // punt NOMÉS quan és un tren esperant en la seua capçalera d'origen;
     // qualsevol tren en trànsit (encara que arribe a una terminal) va amb fletxa
@@ -542,7 +562,7 @@ function animar() {
       const arr = el.querySelector(".tren-arrow");
       if (dot && arr) {
         if (movent) {
-          arr.style.transform = `rotate(${rumbPantalla(t, dEff)}deg)`;
+          arr.style.transform = `rotate(${rumbPantalla(t, dViz)}deg)`;
           arr.style.display = "block"; dot.style.display = "none";
         } else {
           arr.style.display = "none"; dot.style.display = "block";
@@ -600,6 +620,27 @@ function pintarNoinfo() {
   }
 }
 
+// Marca com a congelats els trens el d0 dels quals no ha canviat entre pulls
+// (dades d'horari estàtiques). Cal 2 pulls iguals seguits per a evitar falsos
+// positius amb trens realment quiets un instant. Poda els ids desapareguts.
+function actualitzaCongelats(trenes) {
+  const vius = new Set();
+  for (const t of trenes) {
+    if (t.id == null || !t.waypoints || !t.waypoints.length) continue;
+    vius.add(t.id);
+    const d0 = t.waypoints[0].d;
+    const h = histTren.get(t.id);
+    if (h && Math.abs(d0 - h.d0) < FREEZE_TOL) {
+      h.iguals += 1;
+      h.congelat = h.iguals >= 1;   // 2 pulls seguits amb el mateix d0
+      h.d0 = d0;
+    } else {
+      histTren.set(t.id, { d0, iguals: 0, congelat: false });
+    }
+  }
+  for (const id of [...histTren.keys()]) if (!vius.has(id)) histTren.delete(id);
+}
+
 async function refrescar() {
   try {
     const t0 = Date.now();
@@ -619,6 +660,7 @@ async function refrescar() {
     ultimoTrenes = data.trenes || [];
     ultimoTs = data.ts || Math.floor(serverNow() / 1000);
     noinfo = data.noinfo || [];
+    actualitzaCongelats(ultimoTrenes);
     pintarTrenes(ultimoTrenes);
     pintarNoinfo();
     const edad = data.edad_seg == null ? "—" : data.edad_seg + " s";

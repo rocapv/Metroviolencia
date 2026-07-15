@@ -29,6 +29,44 @@ from .network import Network
 VEL_FALLBACK = 11.0
 SEG_MIN, SEG_MAX = 20, 420
 CAIDA_MIN = 45  # s: caída de ETA que marca el cambio a otro tren por delante
+DEDUP_TOL = 130  # m: dos trenes del MISMO (línea,destino) más cerca que esto son
+                 # el mismo tren físico contado dos veces (artefacto de cabecera).
+
+
+def _mejor(a: "Tren", b: "Tren") -> bool:
+    """True si `a` representa mejor el tren físico que `b` (para quedarnos con uno
+    al colapsar un duplicado). Preferimos el que NO espera en cabecera (tren real
+    en marcha), luego el de trayectoria más rica, luego el de llegada más próxima."""
+    if a.origen != b.origen:
+        return b.origen            # nos quedamos con el que no es 'origen'
+    if len(a.waypoints) != len(b.waypoints):
+        return len(a.waypoints) > len(b.waypoints)
+    return a.eta_seg < b.eta_seg
+
+
+def _dedup(trenes: list["Tren"]) -> list["Tren"]:
+    """Colapsa duplicados de cabecera/terminal: la fuente lista, en la misma
+    terminal, el tren que ACABA de llegar y su próxima SALIDA; el estimador crea
+    dos `Tren` en la misma (línea,destino) y misma posición. Dos trenes reales del
+    mismo destino van siempre a un headway (cientos/miles de m), así que dos a
+    < DEDUP_TOL son el mismo: nos quedamos con el mejor (ver `_mejor`)."""
+    por: dict[tuple[int, str], list[Tren]] = defaultdict(list)
+    for t in trenes:
+        por[(t.linea, t.destino)].append(t)
+    out: list[Tren] = []
+    for _key, lst in por.items():
+        lst.sort(key=lambda t: t.waypoints[0]["d"])
+        kept: list[Tren] = []
+        for t in lst:
+            d = t.waypoints[0]["d"]
+            dup_i = next((i for i, k in enumerate(kept)
+                          if abs(k.waypoints[0]["d"] - d) < DEDUP_TOL), None)
+            if dup_i is None:
+                kept.append(t)
+            elif _mejor(t, kept[dup_i]):
+                kept[dup_i] = t
+        out.extend(kept)
+    return out
 
 
 @dataclass
@@ -161,4 +199,4 @@ def estimar(net: Network, llegadas: list[tuple[int, int, str, int]]) -> list[Tre
                 prox_estacion=net.estaciones[s0].nombre, eta_seg=int(e0),
                 waypoints=waypoints, origen=origen,
             ))
-    return trenes
+    return _dedup(trenes)
