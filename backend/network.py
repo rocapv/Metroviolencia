@@ -52,6 +52,50 @@ def _project_point_on_segment(p, a, b):
     return t, proj, _dist(p, proj)
 
 
+def _merge_ways(ways: list) -> list:
+    """Une los ways OSM (cada uno [[la,ln],...]) en UNA polyline ordenada,
+    encadenando extremos próximos (<35 m). Réplica del mergeWays del frontend:
+    así el trazado que posiciona los trenes es EL MISMO que se dibuja."""
+    if not ways:
+        return []
+    segs = [list(w) for w in ways]
+    used = [False] * len(segs)
+
+    def near(a, b) -> bool:
+        return math.hypot((a[0] - b[0]) * 111000, (a[1] - b[1]) * 85000) < 35
+
+    path = list(segs[0])
+    used[0] = True
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(segs)):
+            if used[i]:
+                continue
+            s = segs[i]
+            head, tail = path[0], path[-1]
+            if near(tail, s[0]):
+                path += s[1:]; used[i] = True; changed = True
+            elif near(tail, s[-1]):
+                path += list(reversed(s))[1:]; used[i] = True; changed = True
+            elif near(head, s[-1]):
+                path = s + path[1:]; used[i] = True; changed = True
+            elif near(head, s[0]):
+                path = list(reversed(s)) + path[1:]; used[i] = True; changed = True
+    return path
+
+
+def _proj_on_poly(p, pts_xy: list, cum: list) -> tuple[float, float]:
+    """(dist_along, dist_perp) de p sobre la polyline dada por (pts_xy, cum)."""
+    best = None
+    for i in range(1, len(pts_xy)):
+        t, _pr, dperp = _project_point_on_segment(p, pts_xy[i - 1], pts_xy[i])
+        dalong = cum[i - 1] + t * (cum[i] - cum[i - 1])
+        if best is None or dperp < best[1]:
+            best = (dalong, dperp)
+    return best if best else (0.0, 1e9)
+
+
 @dataclass
 class Estacion:
     id: int
@@ -211,9 +255,36 @@ class Network:
             for lid in e.lineas:
                 por_linea.setdefault(lid, []).append(e.id)
 
+        tram = self.tram_tracks()
         self.comerciales: dict[int, LineaComercial] = {}
         for lid, sids in por_linea.items():
-            # elegir polyline con más estaciones a <80 m
+            # TRANVÍA (L4/L6/L8/L10): posicionar los trenes sobre el MISMO trazado
+            # real (OSM) que se dibuja. Antes se mapeaba a una polyline de metro
+            # aproximada -> los trenes iban al lado de la vía, no encima. Ahora la
+            # línea comercial ES la vía de tranvía fusionada.
+            tw = tram.get(str(lid))
+            if tw:
+                merged = _merge_ways(tw)
+                if len(merged) >= 2:
+                    latlng = [(p[0], p[1]) for p in merged]
+                    pts_xy = [_xy(la, ln) for la, ln in latlng]
+                    cum = [0.0]
+                    for i in range(1, len(pts_xy)):
+                        cum.append(cum[-1] + _dist(pts_xy[i - 1], pts_xy[i]))
+                    orden = sorted(
+                        (_proj_on_poly(self._xy_of(s), pts_xy, cum)[0], s) for s in sids
+                    )
+                    self.comerciales[lid] = LineaComercial(
+                        id=lid,
+                        color=self.colores_comercial.get(str(lid), "888888"),
+                        seg="tram:" + str(lid),
+                        latlng=latlng,
+                        cum=cum,
+                        orden=orden,
+                        estaciones=set(sids),
+                    )
+                    continue
+            # METRO: elegir polyline con más estaciones a <80 m
             mejor, mejor_n = None, -1
             for pk, ln in self.lineas.items():
                 if len(ln.pts_xy) < 2:
