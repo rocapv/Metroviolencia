@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
@@ -395,7 +396,11 @@ class Network:
             return {}
 
     def cierres(self) -> list[dict]:
-        return self._service().get("cierres", [])
+        """Cierres vigentes: uno con `hasta` (YYYY-MM-DD) deja de aplicarse ese
+        día — si no, el mapa seguiría recortando la línea tras la reapertura."""
+        hoy = date.today().isoformat()
+        return [c for c in self._service().get("cierres", [])
+                if not c.get("hasta") or hoy < c["hasta"]]
 
     def subterraneos(self) -> list[dict]:
         return self._service().get("subterraneos", [])
