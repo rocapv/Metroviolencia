@@ -189,3 +189,6 @@ html, body {
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .arr-eta.imminent { color: #35d07f; }
+
+.link-registre { display: block; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.link-registre:hover { color: var(--txt); }

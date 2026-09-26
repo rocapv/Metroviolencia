@@ -25,7 +25,7 @@ posición de cada tren y los pinta como puntos que se mueven por las vías.
    estaciones, los trazados de vía y los colores oficiales de línea.
    → `scripts/extract_network.py` → `data/network.json`.
 
-3. **Poller.** `backend/poller.py` sondea las 144 estaciones cada ~30 s, parsea
+3. **Poller.** `backend/poller.py` sondea las 144 estaciones cada minuto, parsea
    las llegadas y las guarda en SQLite (`data/metro.db`): histórico completo.
 
 4. **Estimador de posiciones.** `backend/positions.py` sitúa un tren por tramo
@@ -35,6 +35,23 @@ posición de cada tren y los pinta como puntos que se mueven por las vías.
 5. **API + frontend.** `backend/api.py` (FastAPI) sirve la red, las llegadas y
    los trenes estimados; `web/` es un mapa Leaflet (tiles CartoDB dark) que los
    anima.
+
+6. **Registro de salidas (programado vs real).** El poller consulta la web
+   **cada minuto** y, en las 15 cabeceras de línea (`backend/cabeceras.py`),
+   sigue cada tren listado hasta que sale (`backend/salidas.py` →
+   tabla `salidas_obs`). El horario oficial de cada día se descarga del
+   planificador de la web (`backend/horarios.py` → `horario_prog`, hoy y
+   mañana, en segundo plano). El cruce clasifica cada salida programada como
+   *realizada* (con retraso), *cancelada*, *prevista*, *pendiente* o
+   *sin datos*, más las *no programadas*. El **tipo de día** (color del
+   calendario de circulación: blau / verd / roig, y anyil en tranvía; más el
+   servicio nocturno) sale de los PDF oficiales con
+   `scripts/extract_calendario.py` → `data/calendario_AÑO.json`.
+   Consulta: `/registre.html`, `GET /api/registro?dia=YYYY-MM-DD` o
+   `python -m backend.salidas --dia YYYY-MM-DD`.
+   Límites: la ETA de la web tiene resolución de minuto (retrasos ±1 min) y
+   las cabeceras intermedias (València Sud, Empalme…) no se registran porque
+   la fuente mezcla ahí salidas y trenes de paso.
 
 ## Uso local
 

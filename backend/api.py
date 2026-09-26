@@ -5,6 +5,7 @@ Endpoints:
     GET /api/network   -> geometría estática (líneas, estaciones, colores)
     GET /api/trains    -> trenes estimados del último snapshot
     GET /api/arrivals  -> llegadas crudas del último snapshot (por estación)
+    GET /api/registro  -> salidas programadas vs reales de un día (?dia=YYYY-MM-DD)
     GET /api/health    -> estado
 
 Sirve además el frontend estático de ../web en la raíz.
@@ -21,6 +22,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import salidas
+from .calendario import tipo as tipo_dia
 from .network import load_network
 from .positions import estimar
 
@@ -190,6 +193,26 @@ def trains():
     return {"ts": snap["ts"], "edad_seg": int(time.time()) - snap["ts"],
             "srv_ms": int(time.time() * 1000),
             "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap["id"])}
+
+
+@app.get("/api/registro")
+def registro(dia: str | None = None):
+    """Registro programado vs real de las salidas desde cabecera de `dia`."""
+    import datetime as dt
+    dia = dia or dt.date.today().isoformat()
+    try:
+        dt.date.fromisoformat(dia)
+    except ValueError:
+        return JSONResponse({"error": "dia inválido"}, status_code=400)
+    con = _con()
+    try:
+        filas = salidas.registro(con, dia)
+    except sqlite3.OperationalError:
+        filas = []   # tablas aún no creadas
+    return {"dia": dia, "ahora": int(time.time()),
+            "tipo_dia": {"metro": tipo_dia(dia, 1), "tranvia": tipo_dia(dia, 4),
+                         "l10": tipo_dia(dia, 10)},
+            "resumen": salidas.resumen(filas), "salidas": filas}
 
 
 @app.get("/api/health")

@@ -9,18 +9,23 @@ Uso:
 Tablas SQLite (data/metro.db):
     snapshots(id, ts)                                  -- una fila por pasada
     arrivals(snapshot_id, ts, estacion_id, linea, destino, eta_seg, eta_txt, ocupacion)
+    horario_prog / horario_descargas   -- ver horarios.py (salidas programadas)
+    salidas_obs                        -- ver salidas.py (salidas reales)
 """
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import sqlite3
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import requests
 
+from . import horarios, salidas
 from .network import load_network
 from .parser import parse_arrivals
 from .positions import estimar
@@ -55,7 +60,7 @@ HEADERS = {
     "Referer": "https://www.metrovalencia.es/ca/consulta-estaciones/",
     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
 }
-INTERVAL = 300          # cadencia SIN clientes (5 min)
+INTERVAL = 60           # cadencia SIN clientes: 1 min (registro de salidas)
 INTERVAL_ACTIVO = 60    # cadencia CON cliente activo (1 min)
 CLIENTE_VENTANA = 130   # s: cliente "activo" si pidió datos hace menos de esto
 WORKERS = 12            # estaciones en paralelo. Barrido: ~62s en serie -> ~22s.
@@ -143,9 +148,11 @@ def make_session() -> requests.Session:
 
 
 def init_db() -> sqlite3.Connection:
-    con = sqlite3.connect(DB)
+    con = sqlite3.connect(DB, timeout=60)
     con.executescript(SCHEMA)
     con.commit()
+    horarios.init_db(con)
+    salidas.init_db(con)
     return con
 
 
@@ -168,6 +175,7 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
     snap_id = cur.lastrowid
     rows = []
     ok = 0
+    por_estacion: dict[int, list] = {}   # estaciones leídas bien -> llegadas
     # Barrido en paralelo (WORKERS hilos): las 144 estaciones son peticiones
     # independientes; el suelo de latencia deja de ser ~62s (serie) y baja a ~6s,
     # así la cadencia de 60s con cliente activo entrega datos realmente frescos.
@@ -181,7 +189,9 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
         if html is None:
             continue
         ok += 1
+        lleg = por_estacion.setdefault(sid, [])
         for a in parse_arrivals(html):
+            lleg.append((a.linea, a.destino, a.eta_seg))
             rows.append(
                 (snap_id, ts, sid, a.linea, a.destino, a.eta_seg, a.eta_txt, a.ocupacion)
             )
@@ -197,6 +207,9 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
         con.executemany("INSERT INTO noinfo(snapshot_id,ts,linea) VALUES (?,?,?)", ni)
     con.commit()
 
+    # SALIDAS reales desde cabecera (registro programado vs real)
+    sal = salidas.actualizar(con, ts, por_estacion)
+
     # TRACKING: estima los trenes físicos de esta pasada y les da identidad
     # persistente (track_id), siguiéndolos desde el snapshot anterior.
     n_tr = track_snapshot(con, net, snap_id, ts, rows)
@@ -204,7 +217,8 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
     faltan = ", ".join(f"L{l}" for _s, _t, l in ni) or "-"
     print(f"[{time.strftime('%H:%M:%S')}] snapshot {snap_id}: "
           f"{ok}/{len(net.estaciones)} estaciones, {len(rows)} llegadas, "
-          f"{n_tr} trenes, NoInfo: {faltan}")
+          f"{n_tr} trenes, NoInfo: {faltan}, salidas: {sal['salen']} "
+          f"(+{sal['nuevas']} previstas, {sal['desaparecen']} caídas)")
     return snap_id
 
 
@@ -250,6 +264,35 @@ def track_snapshot(con: sqlite3.Connection, net, snap_id: int, ts: int, rows: li
     return len(filas)
 
 
+_hilo_horario: threading.Thread | None = None
+
+
+def _descargar_horarios() -> None:
+    """Horario programado de hoy y mañana (idempotente: solo lo que falte).
+    En hilo aparte con su propia conexión: son ~40 consultas lentas y no deben
+    retrasar el pull de 1 min."""
+    try:
+        con = sqlite3.connect(DB, timeout=60)
+        net = load_network()
+        s = make_session()
+        hoy = dt.date.today()
+        for d in (hoy, hoy + dt.timedelta(days=1)):
+            n = horarios.descargar_dia(con, s, HEADERS, VERIFY, d.isoformat(), net)
+            if n:
+                print(f"horario {d}: {n} salidas programadas descargadas")
+        con.close()
+    except Exception as e:  # noqa: BLE001
+        print("error descargando horario:", e)
+
+
+def lanzar_horarios() -> None:
+    global _hilo_horario
+    if _hilo_horario and _hilo_horario.is_alive():
+        return
+    _hilo_horario = threading.Thread(target=_descargar_horarios, daemon=True)
+    _hilo_horario.start()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true", help="una sola pasada y salir")
@@ -262,9 +305,13 @@ def main():
         poll_once(con, session)
         return
 
-    idle = args.interval            # cadencia sin clientes (por defecto 300)
+    idle = args.interval            # cadencia sin clientes (por defecto 60)
     last_pull = 0.0
+    last_horario = 0.0
     while True:
+        if time.time() - last_horario > 3600:   # cada hora: ¿falta horario?
+            last_horario = time.time()
+            lanzar_horarios()
         objetivo = INTERVAL_ACTIVO if cliente_activo() else idle
         transcurrido = time.time() - last_pull
         if transcurrido >= objetivo:

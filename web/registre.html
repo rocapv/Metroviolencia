@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ca-ES-valencia">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Metroviolencia · registre d'eixides</title>
+  <style>
+    :root { --bg:#0d0d12; --panel:#16161f; --txt:#e8e8ef; --muted:#9a9aac; --viol:#c026d3;
+            --ok:#22c55e; --ko:#ef4444; --warn:#f59e0b; --gris:#6b7280; --blau:#38bdf8; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--txt);
+           font-family:-apple-system,"Segoe UI",Roboto,sans-serif; font-size:14px; }
+    header { padding:14px 16px; border-bottom:1px solid #ffffff14; display:flex; flex-wrap:wrap;
+             gap:10px 16px; align-items:center; }
+    h1 { font-size:17px; margin:0; } h1 b { color:var(--viol); }
+    a { color:var(--muted); }
+    input, select { background:var(--panel); color:var(--txt); border:1px solid #ffffff22;
+                    border-radius:6px; padding:5px 8px; font:inherit; }
+    .tipus { display:flex; gap:6px; flex-wrap:wrap; }
+    .chip { padding:2px 8px; border-radius:10px; font-size:12px; border:1px solid #ffffff22; }
+    .c-blau { color:#38bdf8; } .c-verd { color:#4ade80; } .c-roig { color:#f87171; } .c-anyil { color:#a5a3e0; }
+    main { padding:12px 16px 40px; }
+    .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-bottom:14px; }
+    .kpi { background:var(--panel); border-radius:10px; padding:10px 12px; cursor:pointer; border:1px solid transparent; }
+    .kpi.sel { border-color:var(--viol); }
+    .kpi .n { font-size:22px; font-weight:700; } .kpi .l { color:var(--muted); font-size:12px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { text-align:left; padding:6px 8px; border-bottom:1px solid #ffffff0d; white-space:nowrap; }
+    th { color:var(--muted); font-weight:600; font-size:12px; position:sticky; top:0; background:var(--bg); }
+    .lin { display:inline-block; min-width:28px; text-align:center; border-radius:4px; font-weight:700;
+           font-size:12px; padding:1px 4px; color:#000; }
+    .e-realizada { color:var(--ok); } .e-cancelada { color:var(--ko); font-weight:700; }
+    .e-prevista { color:var(--blau); } .e-pendiente { color:var(--muted); }
+    .e-sin_datos { color:var(--gris); } .e-no_programada { color:var(--warn); }
+    .muted { color:var(--muted); } .wrap { overflow-x:auto; }
+    .nota { color:var(--muted); font-size:12px; margin-top:16px; max-width:760px; line-height:1.5; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><b>Metroviolencia</b> · registre d'eixides</h1>
+    <input type="date" id="dia">
+    <select id="cab"><option value="">Totes les capçaleres</option></select>
+    <div class="tipus" id="tipus"></div>
+    <a href="./">← mapa</a>
+  </header>
+  <main>
+    <div class="kpis" id="kpis"></div>
+    <div class="wrap"><table>
+      <thead><tr><th>Programada</th><th>Capçalera</th><th>Línia</th><th>Destí</th>
+        <th>Real</th><th>Retard</th><th>Estat</th></tr></thead>
+      <tbody id="files"></tbody>
+    </table></div>
+    <p class="nota">Eixides des de capçalera. <b>Programada</b>: horari oficial del planificador
+      de Metrovalència per a eixe dia (el tipus de dia és el color del calendari de circulació).
+      <b>Real</b>: estimada del temps real que publica la web, consultat cada minut
+      (resolució ±1 min). <b>Cancel·lada</b>: el tren programat no va aparéixer als panells
+      (o hi va desaparéixer abans d'eixir). <b>Sense dades</b>: no es va poder llegir la capçalera.</p>
+  </main>
+<script>
+const ESTATS = { realizada:"Realitzada", cancelada:"Cancel·lada", prevista:"Prevista",
+                 pendiente:"Pendent", sin_datos:"Sense dades", no_programada:"No programada" };
+let colors = {}, dades = null, filtreEstat = "";
+const $ = (id) => document.getElementById(id);
+const hm = (t) => t ? new Date(t * 1000).toLocaleTimeString("ca-ES", { hour: "2-digit", minute: "2-digit" }) : "";
+const retard = (s) => s == null ? "" : (s >= 0 ? "+" : "−") + Math.round(Math.abs(s) / 60) + " min";
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+function lin(l) {
+  if (!l) return '<span class="muted">?</span>';
+  return `<span class="lin" style="background:#${colors[l] || "888"}">L${l}</span>`;
+}
+
+function pinta() {
+  const cab = $("cab").value;
+  const fs = dades.salidas.filter((f) => !cab || String(f.origen_id) === cab);
+  const cnt = {};
+  fs.forEach((f) => cnt[f.estado] = (cnt[f.estado] || 0) + 1);
+  const prog = fs.filter((f) => f.ts_prog).length;
+  const ret = fs.filter((f) => f.estado === "realizada").map((f) => f.retraso_s).sort((a, b) => a - b);
+  const kp = [["", prog, "Programades"], ...["realizada", "cancelada", "prevista", "pendiente",
+               "no_programada", "sin_datos"].map((e) => [e, cnt[e] || 0, ESTATS[e]])];
+  $("kpis").innerHTML = kp.map(([e, n, l]) =>
+    `<div class="kpi ${filtreEstat === e ? "sel" : ""}" data-e="${e}"><div class="n e-${e}">${n}</div><div class="l">${l}</div></div>`
+  ).join("") + `<div class="kpi"><div class="n">${ret.length ? retard(ret[ret.length >> 1]) : "–"}</div><div class="l">Retard medià</div></div>`;
+  $("kpis").querySelectorAll(".kpi[data-e]").forEach((k) => k.onclick = () => {
+    filtreEstat = filtreEstat === k.dataset.e ? "" : k.dataset.e; pinta();
+  });
+  $("files").innerHTML = fs.filter((f) => !filtreEstat || f.estado === filtreEstat).map((f) => `
+    <tr><td>${esc(f.hora || "—")}</td><td>${esc(f.cabecera)}</td>
+      <td>${lin(f.linea_real || f.linea)}</td><td>${esc(f.destino_real || f.destino)}</td>
+      <td>${hm(f.real)}</td><td>${f.estado === "realizada" || f.estado === "prevista" ? retard(f.retraso_s) : ""}</td>
+      <td class="e-${f.estado}">${ESTATS[f.estado] || f.estado}</td></tr>`).join("");
+}
+
+async function carrega() {
+  const r = await fetch("api/registro?dia=" + $("dia").value + "&_=" + Date.now(), { cache: "no-store" });
+  dades = await r.json();
+  const t = dades.tipo_dia || {};
+  $("tipus").innerHTML = [["metro", "Metro"], ["tranvia", "Tramvia"], ["l10", "L10"]].map(([k, n]) => {
+    const v = t[k]; if (!v) return "";
+    const [c, noct] = v.split("+");
+    return `<span class="chip c-${c}">${n}: ${c}${noct ? " · nocturn" : ""}</span>`;
+  }).join("");
+  const sel = $("cab").value, vistes = new Map();
+  dades.salidas.forEach((f) => vistes.set(f.origen_id, f.cabecera));
+  $("cab").innerHTML = '<option value="">Totes les capçaleres</option>' +
+    [...vistes].sort((a, b) => a[1].localeCompare(b[1])).map(([id, n]) =>
+      `<option value="${id}" ${String(id) === sel ? "selected" : ""}>${esc(n)}</option>`).join("");
+  pinta();
+}
+
+(async function () {
+  const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  $("dia").value = d.toISOString().slice(0, 10);
+  try { colors = (await (await fetch("api/network")).json()).colores_comercial || {}; } catch (e) {}
+  $("dia").onchange = carrega;
+  $("cab").onchange = pinta;
+  await carrega();
+  setInterval(() => { if ($("dia").value === new Date().toISOString().slice(0, 10)) carrega(); }, 60000);
+})();
+</script>
+</body>
+</html>

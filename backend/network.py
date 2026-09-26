@@ -311,6 +311,12 @@ class Network:
         e = self.estaciones[sid]
         return _xy(e.lat, e.lng)
 
+    def id_por_nombre(self, nombre: str) -> int | None:
+        for e in self.estaciones.values():
+            if e.nombre == nombre:
+                return e.id
+        return None
+
     def orden_nombres(self, lid: int) -> list[str]:
         ln = self.lineas[lid]
         return [self.estaciones[s].nombre for _, s in ln.orden]

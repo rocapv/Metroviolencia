@@ -1,0 +1,4405 @@
+{
+ "_fuentes": {
+  "metro": "https://www.metrovalencia.es/wp-content/uploads/2026/06/Calendario-circulacion-lineas-metro-2026.pdf",
+  "tranvia": "https://www.metrovalencia.es/wp-content/uploads/2026/06/Calendario-circulacion-lineas-tranvia-2026.pdf",
+  "l10": "https://www.metrovalencia.es/wp-content/uploads/2026/06/Calendario-circulacion-L10-2026.pdf"
+ },
+ "_red_de_linea": {
+  "1": "metro",
+  "2": "metro",
+  "3": "metro",
+  "5": "metro",
+  "7": "metro",
+  "9": "metro",
+  "4": "tranvia",
+  "6": "tranvia",
+  "8": "tranvia",
+  "10": "l10"
+ },
+ "metro": {
+  "2026-01-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-02": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-03": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-04": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-05": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-09": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-10": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-11": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-16": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-17": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-18": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-23": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-24": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-25": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-30": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-31": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-06": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-13": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-15": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-20": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-22": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-27": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-06": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-13": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-20": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-22": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-27": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-29": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-31": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-02": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-04-03": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-04-04": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-05": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-04-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-10": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-04-11": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-12": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-04-13": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-17": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-04-18": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-19": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-24": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-04-25": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-26": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-30": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-01": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-05-02": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-03": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-06": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-08": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-09": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-10": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-15": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-16": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-17": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-22": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-23": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-24": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-29": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-30": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-31": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-05": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-06-06": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-07": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-12": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-06-13": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-14": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-19": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-06-20": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-21": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-24": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-26": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-06-27": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-28": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-03": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-07-04": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-05": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-06": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-10": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-07-11": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-12": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-17": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-07-18": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-19": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-24": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-07-25": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-26": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-31": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-08-01": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-02": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-03": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-04": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-05": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-06": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-08": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-09": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-10": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-11": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-12": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-13": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-15": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-08-16": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-17": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-18": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-19": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-20": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-22": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-23": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-24": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-25": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-26": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-27": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-29": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-30": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-31": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-09-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-04": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-05": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-11": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-12": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-13": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-18": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-19": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-20": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-25": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-26": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-27": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-02": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-03": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-04": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-06": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-08": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-09": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-10-10": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-11": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-10-12": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-16": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-17": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-18": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-23": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-24": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-25": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-30": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-31": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-06": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-13": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-15": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-20": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-22": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-27": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-29": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-04": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-05": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-07": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-11": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-12": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-13": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-18": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-19": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-20": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-25": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-12-26": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-27": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-31": {
+   "color": "blau",
+   "nocturn": false
+  }
+ },
+ "tranvia": {
+  "2026-01-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-02": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-01-03": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-04": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-05": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-01-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-09": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-10": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-11": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-16": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-17": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-18": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-22": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-01-23": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-24": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-25": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-30": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-31": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-06": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-13": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-15": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-20": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-22": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-27": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-06": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-13": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-15": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-16": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-03-17": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-03-18": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-03-19": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-03-20": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-03-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-22": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-27": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-29": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-31": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-02": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-04-03": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-04-04": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-05": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-04-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-07": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-04-08": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-04-09": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-04-10": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-04-11": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-12": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-04-13": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-17": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-04-18": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-19": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-24": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-04-25": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-26": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-30": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-01": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-05-02": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-03": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-06": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-08": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-09": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-10": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-15": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-16": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-17": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-22": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-23": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-24": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-29": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-30": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-31": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-05": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-06-06": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-07": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-12": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-06-13": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-14": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-17": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-06-18": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-06-19": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-06-20": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-21": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-22": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-06-23": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-06-24": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-06-25": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-06-26": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-06-27": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-28": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-29": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-06-30": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-01": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-02": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-03": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-07-04": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-05": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-06": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-07": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-08": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-09": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-10": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-07-11": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-12": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-13": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-14": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-15": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-16": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-17": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-07-18": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-19": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-20": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-21": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-22": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-23": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-24": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-07-25": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-26": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-27": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-28": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-29": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-30": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-07-31": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-08-01": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-02": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-03": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-04": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-05": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-06": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-07": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-08-08": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-09": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-10": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-11": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-12": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-13": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-14": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-08-15": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-08-16": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-17": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-18": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-19": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-20": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-21": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-08-22": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-23": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-24": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-25": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-26": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-27": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-08-28": {
+   "color": "anyil",
+   "nocturn": true
+  },
+  "2026-08-29": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-30": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-31": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-09-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-04": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-05": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-11": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-12": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-13": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-18": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-19": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-20": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-25": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-26": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-27": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-02": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-03": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-04": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-06": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-08": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-09": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-10-10": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-11": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-10-12": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-16": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-17": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-18": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-23": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-24": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-25": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-30": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-31": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-06": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-13": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-15": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-20": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-22": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-27": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-29": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-04": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-05": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-07": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-11": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-12": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-13": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-18": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-19": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-20": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-24": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-12-25": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-12-26": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-27": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-28": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-12-29": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-12-30": {
+   "color": "anyil",
+   "nocturn": false
+  },
+  "2026-12-31": {
+   "color": "anyil",
+   "nocturn": false
+  }
+ },
+ "l10": {
+  "2026-01-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-02": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-03": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-04": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-05": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-09": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-10": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-11": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-16": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-17": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-18": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-23": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-24": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-01-25": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-01-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-01-30": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-01-31": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-06": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-13": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-15": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-20": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-02-22": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-02-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-02-27": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-02-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-06": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-13": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-20": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-22": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-27": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-03-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-03-29": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-03-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-03-31": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-02": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-04-03": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-04-04": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-05": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-04-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-10": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-04-11": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-12": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-04-13": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-17": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-04-18": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-19": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-24": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-04-25": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-04-26": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-04-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-04-30": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-01": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-05-02": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-03": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-06": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-08": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-09": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-10": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-15": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-16": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-17": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-22": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-23": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-24": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-05-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-05-29": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-05-30": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-05-31": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-05": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-06-06": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-07": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-12": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-06-13": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-14": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-19": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-06-20": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-21": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-24": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-26": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-06-27": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-06-28": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-06-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-06-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-03": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-07-04": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-05": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-06": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-10": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-07-11": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-12": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-17": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-07-18": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-19": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-24": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-07-25": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-07-26": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-07-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-07-31": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-08-01": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-02": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-03": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-04": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-05": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-06": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-08": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-09": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-10": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-11": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-12": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-13": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-15": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-08-16": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-17": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-18": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-19": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-20": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-22": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-23": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-24": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-25": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-26": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-27": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-08-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-29": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-08-30": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-08-31": {
+   "color": "verd",
+   "nocturn": false
+  },
+  "2026-09-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-04": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-05": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-08": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-11": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-12": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-13": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-18": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-19": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-20": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-25": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-09-26": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-09-27": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-09-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-09-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-02": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-03": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-04": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-06": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-07": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-08": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-09": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-10-10": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-11": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-10-12": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-13": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-16": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-17": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-18": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-20": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-23": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-24": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-10-25": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-10-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-27": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-10-30": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-10-31": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-01": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-04": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-05": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-06": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-07": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-11": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-12": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-13": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-14": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-15": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-18": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-19": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-20": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-21": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-22": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-25": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-26": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-11-27": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-11-28": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-11-29": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-11-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-01": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-02": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-03": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-04": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-05": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-06": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-07": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-08": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-09": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-10": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-11": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-12": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-13": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-14": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-15": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-16": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-17": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-18": {
+   "color": "blau",
+   "nocturn": true
+  },
+  "2026-12-19": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-20": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-21": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-22": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-23": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-24": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-25": {
+   "color": "roig",
+   "nocturn": true
+  },
+  "2026-12-26": {
+   "color": "verd",
+   "nocturn": true
+  },
+  "2026-12-27": {
+   "color": "roig",
+   "nocturn": false
+  },
+  "2026-12-28": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-29": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-30": {
+   "color": "blau",
+   "nocturn": false
+  },
+  "2026-12-31": {
+   "color": "blau",
+   "nocturn": false
+  }
+ }
+}
