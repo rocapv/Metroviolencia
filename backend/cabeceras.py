@@ -22,7 +22,9 @@ CABECERAS: list[dict] = [
     {"id": 182, "nombre": "Aeroport",             "lineas": [3, 5]},
     {"id": 114, "nombre": "Mas del Rosari",       "lineas": [4]},
     {"id": 115, "nombre": "Ll. Llarga - Terramelar", "lineas": [4]},
-    {"id": 98,  "nombre": "Dr. Lluch",            "lineas": [4, 6]},
+    # solo L4: los L6 hacia Tossal salen de Marítim y PASAN por aquí ~10 min
+    # después (mismos 51 trenes/día); contarlos daba "retrasos" de +3-7 min falsos
+    {"id": 98,  "nombre": "Dr. Lluch",            "lineas": [4]},
     {"id": 132, "nombre": "Tossal del Rei",       "lineas": [6]},
     {"id": 123, "nombre": "Marítim",              "lineas": [5, 6, 7, 8]},
     {"id": 126, "nombre": "Neptú",                "lineas": [8]},
