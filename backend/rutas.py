@@ -28,6 +28,7 @@ MARGEN_D = 150       # m de tolerancia al comparar posiciones sobre la vía
 TOKEN_TTL = 1800     # s que se reutiliza el auth_token del planificador
 CACHE_TTL = 50       # s que se reutiliza una misma consulta (o, d)
 ETA_PRECISA = 3600   # s: desde aquí la web da "1 h"/"2 h" sin minutos
+VENTANA_CANC = 1800  # s: horizonte en el que se avisa de salidas sin tren anunciado
 VENTANA_CASE = 900   # s: un tren en vivo se casa con una salida programada a <15 min
 
 _ALT_RE = re.compile(r'js-ruta-opcion')
@@ -240,6 +241,33 @@ def desfases(trenes_p: list[dict], salidas: list[str], dia: str, ts_datos: int) 
         t["desfase_s"] = real - p
 
 
+def sin_tren(p: dict, llegadas_s: list[tuple[int, str, int]], dia: str,
+             ts_datos: int, ahora: float) -> list[str]:
+    """Salidas PROGRAMADAS en S de los próximos VENTANA_CANC s que no casan con
+    ninguna llegada anunciada en el panel de S (misma línea y destino válido):
+    posible cancelación. Solo se juzga si el panel ya anuncia algún tren
+    POSTERIOR a esa hora (si no, puede que simplemente aún no se vea)."""
+    dest_ok = {t["destino"] for t in p["trenes"]} | set(p.get("destinos") or [])
+    if not dest_ok:
+        return []
+    anun = sorted(ts_datos + eta for lin, dest, eta in llegadas_s
+                  if lin in p["lineas"] and dest in dest_ok and eta < ETA_PRECISA)
+    if not anun:
+        return []
+    usadas: set[int] = set()
+    faltan = []
+    for h in p["salidas"]:
+        tp = _ts(dia, h)
+        if not (ahora - 120 <= tp <= ahora + VENTANA_CANC) or tp >= anun[-1]:
+            continue
+        cands = [i for i, a in enumerate(anun) if i not in usadas and abs(a - tp) <= VENTANA_CASE]
+        if cands:
+            usadas.add(min(cands, key=lambda i: abs(anun[i] - tp)))
+        else:
+            faltan.append(h)
+    return faltan
+
+
 def enriquecer(net, alts: list[dict], trenes: list[dict],
                llegadas: dict[int, list[tuple[int, str, int]]],
                dia: str | None = None, ts_datos: int | None = None) -> list[dict]:
@@ -262,4 +290,5 @@ def enriquecer(net, alts: list[dict], trenes: list[dict],
             p["trenes"].sort(key=lambda x: (x["eta_subida"] is None, x["eta_subida"] or 0))
             if dia and ts_datos:
                 desfases(p["trenes"], p["salidas"], dia, ts_datos)
+                p["sin_tren"] = sin_tren(p, llegadas.get(s, []), dia, ts_datos, ahora)
     return alts

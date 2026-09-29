@@ -102,6 +102,7 @@
         <div class="ruta-dir">direcció ${esc((p.destinos || []).join(" / ") || "—")}</div>
         ${trens || "<div class='ruta-muted'>cap tren en directe per a este tram ara mateix</div>"}
         ${prox}
+        ${(p.sin_tren || []).length ? `<div class="ruta-canc">⚠ Programat ${p.sin_tren.map(esc).join(", ")} però no apareix en directe: possible cancel·lació.</div>` : ""}
         ${horari ? `<div class="ruta-horari">Horari: ${horari}</div>` : ""}
         <div class="ruta-baixa">${ult ? "Arribes a" : "Transbord a"} <b>${esc(p.a)}</b></div>
       </div>`;
