@@ -97,7 +97,7 @@ async function carrega() {
   const r = await fetch("api/registro?dia=" + $("dia").value + "&_=" + Date.now(), { cache: "no-store" });
   dades = await r.json();
   const t = dades.tipo_dia || {};
-  $("tipus").innerHTML = [["metro", "Metro"], ["tranvia", "Tramvia"], ["l10", "L10"]].map(([k, n]) => {
+  $("tipus").innerHTML = [["metro", "Metro"], ["tranvia", "Tramvia L4/L6/L8"], ["l10", "Tramvia L10"]].map(([k, n]) => {
     const v = t[k]; if (!v) return "";
     const [c, noct] = v.split("+");
     return `<span class="chip c-${c}">${n}: ${c}${noct ? " · nocturn" : ""}</span>`;

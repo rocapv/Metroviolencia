@@ -223,7 +223,7 @@
     const canc = fs.filter((f) => f.estado === "cancelada");
     const mitja = fetes.length ? fetes.reduce((a, f) => a + f.retraso_s, 0) / fetes.length : null;
     const t = registre.tipo_dia || {};
-    $("ret-tipus").innerHTML = [["metro", "Metro"], ["tranvia", "Tramvia"], ["l10", "L10"]].map(([k, n]) => {
+    $("ret-tipus").innerHTML = [["metro", "Metro"], ["tranvia", "Tramvia L4/L6/L8"], ["l10", "Tramvia L10"]].map(([k, n]) => {
       if (!t[k]) return "";
       const [c, noct] = t[k].split("+");
       return `<span class="tipus-chip c-${c}">${n}: ${c}${noct ? " · nocturn" : ""}</span>`;

@@ -2,7 +2,8 @@
 Tipo de día según el calendario de circulación de Metrovalencia
 (data/calendario_AÑO.json, generado por scripts/extract_calendario.py).
 
-Cada día tiene un COLOR por red (metro / tranvia / l10) y puede tener servicio
+Cada día tiene un COLOR por red (metro / tranvia / l10; la L10 también es
+tranvía, pero Metrovalencia le publica un calendario propio) y puede tener servicio
 NOCTURNO; mismo color = mismo horario. tipo("2026-09-26", 5) -> "verd+nocturn".
 """
 from __future__ import annotations

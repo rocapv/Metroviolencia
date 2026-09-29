@@ -25,3 +25,6 @@ apk/icon_preview.png
 data/last_client.txt
 
 data/open_until.txt
+data/tmp/
+data/ultima_purga.txt
+data/archivo/

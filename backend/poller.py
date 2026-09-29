@@ -25,7 +25,8 @@ from pathlib import Path
 
 import requests
 
-from . import horarios, pasos, salidas
+from . import horarios, pasos, purga, salidas
+from .cabeceras import CABECERAS
 from .network import load_network
 from .parser import parse_arrivals
 from .positions import estimar
@@ -51,6 +52,7 @@ else:
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "data" / "metro.db"
 CLIENT_FILE = ROOT / "data" / "last_client.txt"
+PURGA_FILE = ROOT / "data" / "ultima_purga.txt"   # marca de la última purga diaria
 
 AJAX_URL = "https://www.metrovalencia.es/wp-admin/admin-ajax.php"
 HEADERS = {
@@ -127,11 +129,24 @@ CREATE TABLE IF NOT EXISTS trenes (
 );
 CREATE INDEX IF NOT EXISTS idx_trenes_snap  ON trenes(snapshot_id);
 CREATE INDEX IF NOT EXISTS idx_trenes_track ON trenes(track_id, ts);
+
+-- Lecturas SIN información: estación que no se pudo leer (motivo 'error') o
+-- cabecera leída con el panel VACÍO (motivo 'vacia', p. ej. de madrugada). Con
+-- esto el registro distingue "cancelado" de "sin datos" sin depender de
+-- `arrivals`, que se purga a los pocos días (ver purga.py).
+CREATE TABLE IF NOT EXISTS lecturas_fallidas (
+    snapshot_id INTEGER NOT NULL,
+    ts          INTEGER NOT NULL,
+    estacion_id INTEGER NOT NULL,
+    motivo      TEXT NOT NULL DEFAULT 'error'
+);
+CREATE INDEX IF NOT EXISTS idx_fallidas ON lecturas_fallidas(estacion_id, ts);
 """
 
-# Líneas de METRO con tiempo real en la fuente. Si alguna no aparece en una
-# pasada -> se registra NoInfo. Los tranvías (4,6,8) nunca dan datos y no cuentan.
-LINEAS_ESPERADAS = [1, 2, 3, 5, 7, 9, 10]
+# Líneas con tiempo real en la fuente: metro (1,2,3,5,7,9) y tranvía (4,6,8,10;
+# L10 también es tranvía). Desde septiembre los tranvías también dan datos. Si
+# alguna no aparece en una pasada -> se registra NoInfo.
+LINEAS_ESPERADAS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 
 def make_session() -> requests.Session:
@@ -149,6 +164,10 @@ def make_session() -> requests.Session:
 
 def init_db() -> sqlite3.Connection:
     con = sqlite3.connect(DB, timeout=60)
+    try:   # bases anteriores a la columna motivo
+        con.execute("ALTER TABLE lecturas_fallidas ADD COLUMN motivo TEXT NOT NULL DEFAULT 'error'")
+    except sqlite3.OperationalError:
+        pass
     con.executescript(SCHEMA)
     con.commit()
     horarios.init_db(con)
@@ -186,8 +205,10 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
 
     with ThreadPoolExecutor(max_workers=WORKERS) as ex:
         resultados = ex.map(_one, list(net.estaciones))
+    fallidas = []
     for sid, html in resultados:
         if html is None:
+            fallidas.append((snap_id, ts, sid))
             continue
         ok += 1
         lleg = por_estacion.setdefault(sid, [])
@@ -196,6 +217,13 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
             rows.append(
                 (snap_id, ts, sid, a.linea, a.destino, a.eta_seg, a.eta_txt, a.ocupacion)
             )
+    # cabeceras leídas pero con el panel vacío: tampoco hay información
+    fallidas = [f + ("error",) for f in fallidas] + [
+        (snap_id, ts, c["id"], "vacia") for c in CABECERAS
+        if c["id"] in por_estacion and not por_estacion[c["id"]]]
+    if fallidas:
+        con.executemany("INSERT INTO lecturas_fallidas(snapshot_id,ts,estacion_id,motivo)"
+                        " VALUES (?,?,?,?)", fallidas)
     con.executemany(
         "INSERT INTO arrivals(snapshot_id,ts,estacion_id,linea,destino,eta_seg,eta_txt,ocupacion)"
         " VALUES (?,?,?,?,?,?,?,?)",
@@ -288,6 +316,14 @@ def _descargar_horarios() -> None:
             n = pasos.descargar_dia(con, s, HEADERS, VERIFY, d.isoformat(), net)
             if n:
                 print(f"horario de paso {d}: {n} horas descargadas")
+        # purga diaria de datos brutos (arrivals/trenes antiguos), ver purga.py
+        try:
+            ultima = float(PURGA_FILE.read_text().strip())
+        except Exception:  # noqa: BLE001
+            ultima = 0.0
+        if time.time() - ultima > 20 * 3600:
+            print("purga:", purga.purgar(con))
+            PURGA_FILE.write_text(str(int(time.time())))
         con.close()
     except Exception as e:  # noqa: BLE001
         print("error descargando horario:", e)

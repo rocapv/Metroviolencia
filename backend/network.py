@@ -426,8 +426,9 @@ class Network:
         return {
             "colores": self.colores,
             "colores_comercial": self.colores_comercial,
-            # tranvías: la fuente no da tiempo real -> siempre "sense info"
-            "sin_tiempo_real": [4, 6, 8],
+            # líneas sin tiempo real en la fuente: ninguna desde septiembre de
+            # 2026 (los tranvías L4/L6/L8/L10 ya lo dan)
+            "sin_tiempo_real": [],
             "cierres": self.cierres(),
             "subterraneos": self.subterraneos(),
             "estaciones_retorno": self.estaciones_retorno(),

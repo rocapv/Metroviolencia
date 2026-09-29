@@ -155,10 +155,18 @@ def _rango_dia(dia: str) -> tuple[int, int]:
 
 
 def _cobertura(con, sid: int, t0: int, t1: int) -> list[int]:
-    """Instantes (ordenados) en que la cabecera se leyó con algún tren."""
+    """Instantes (ordenados) en que la estación se leyó bien: pasadas del
+    poller menos las que fallaron en esa estación. No usa `arrivals` (que se
+    purga), así un día antiguo sigue distinguiendo cancelado de sin datos."""
+    try:
+        malas = {r[0] for r in con.execute(
+            "SELECT ts FROM lecturas_fallidas WHERE estacion_id=? AND ts>=? AND ts<?",
+            (sid, t0, t1))}
+    except sqlite3.OperationalError:
+        malas = set()
     return [r[0] for r in con.execute(
-        "SELECT DISTINCT ts FROM arrivals WHERE estacion_id=? AND ts>=? AND ts<?"
-        " ORDER BY ts", (sid, t0, t1))]
+        "SELECT ts FROM snapshots WHERE ts>=? AND ts<? ORDER BY ts", (t0, t1))
+        if r[0] not in malas]
 
 
 def _cubierto(cob: list[int], t: int, margen: int = HUECO_MAX) -> bool:
