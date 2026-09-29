@@ -52,6 +52,15 @@
     }
   }
 
+  // desfase del tren en directe respecte a la seua hora programada
+  function desfase(t) {
+    if (t.desfase_s == null) return "";
+    const d = t.desfase_s, min = Math.round(Math.abs(d) / 60);
+    const [cls, txt] = Math.abs(d) < 90 ? ["hora", "a l'hora"]
+      : d > 0 ? [d >= 180 ? "tard" : "poc", `+${min} min`] : ["avanc", `−${min} min`];
+    return `<span class="ruta-desf ${cls}" title="programat ${esc(t.hora_prog)}">${esc(t.hora_prog)} · ${txt}</span>`;
+  }
+
   function alt() { return ruta && ruta.alternativas[altSel]; }
 
   function pinta() {
@@ -62,6 +71,12 @@
     }
     const passat = Math.max(0, (Date.now() - rutaTs) / 1000);
     let h = "";
+    if (ruta.ventana === "hoy") {
+      h += "<p class='ruta-avis'>No hi ha trens en les pròximes 2 hores; mire l'horari de la resta del dia.</p>";
+    } else if (ruta.ventana === "manana") {
+      const p0 = (a.pasos[0] || {}).salidas || [];
+      h += `<p class='ruta-avis'>Hui ja no hi ha servei. Primer tren demà a les <b>${esc(p0[0] || "?")}</b>.</p>`;
+    }
     if (ruta.alternativas.length > 1) {
       h += "<div class='ruta-alts'>" + ruta.alternativas.map((x, i) =>
         `<button data-i="${i}" class="${i === altSel ? "on" : ""}">${x.duracion_min ?? "?"} min · ${x.transbordos} transb.</button>`
@@ -74,13 +89,19 @@
       const trens = (p.trenes || []).slice(0, 3).map((t) => {
         const eta = t.eta_subida == null ? null : Math.max(0, t.eta_subida - passat);
         return `<div class="ruta-tren">${chip(t.linea)}<span class="arr-dest">→ ${esc(t.destino)}</span>
+          ${desfase(t)}
           <span class="arr-eta ${eta != null && eta <= 60 ? "imminent" : ""}">${eta == null ? "de camí" : fmtEta(eta)}</span></div>`;
       }).join("");
-      const horari = (p.salidas || []).slice(0, 4).join(" · ");
+      const prox = !trens && p.proxima_prog
+        ? `<div class="ruta-prox">Pròxim programat: <b>${esc(p.proxima_prog)}</b>${ruta.ventana === "manana" ? " (demà)" : ""}</div>` : "";
+      const sal = p.salidas || [];
+      const desDe = Math.max(0, sal.indexOf(p.proxima_prog));   // no mostrar hores passades
+      const horari = sal.slice(desDe, desDe + 4).join(" · ");
       h += `<div class="ruta-pas">
         <div class="ruta-pas-cap"><span class="ruta-n">${i + 1}</span>Puja a <b>${esc(p.de)}</b> ${(p.lineas || []).map(chip).join("")}</div>
         <div class="ruta-dir">direcció ${esc((p.destinos || []).join(" / ") || "—")}</div>
         ${trens || "<div class='ruta-muted'>cap tren en directe per a este tram ara mateix</div>"}
+        ${prox}
         ${horari ? `<div class="ruta-horari">Horari: ${horari}</div>` : ""}
         <div class="ruta-baixa">${ult ? "Arribes a" : "Transbord a"} <b>${esc(p.a)}</b></div>
       </div>`;

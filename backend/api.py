@@ -219,7 +219,7 @@ def ruta(origen: int, destino: int):
         return JSONResponse({"error": "estación desconocida"}, status_code=400)
     _sesion = _sesion or make_session()
     try:
-        alts = rutas.consultar_ruta(_sesion, HEADERS, VERIFY, origen, destino)
+        res = rutas.consultar_ruta(_sesion, HEADERS, VERIFY, origen, destino)
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": f"planificador no disponible: {e}"}, status_code=502)
     vivo = trains()
@@ -230,10 +230,11 @@ def ruta(origen: int, destino: int):
         for r in con.execute("SELECT estacion_id,linea,destino,eta_seg FROM arrivals "
                              "WHERE snapshot_id=?", (snap["id"],)):
             llegadas.setdefault(r[0], []).append((r[1], r[2], r[3]))
-    alts = rutas.enriquecer(net, [dict(a, pasos=[dict(p) for p in a["pasos"]]) for a in alts],
-                            vivo.get("trenes", []), llegadas)
+    alts = rutas.enriquecer(
+        net, [dict(a, pasos=[dict(p) for p in a["pasos"]]) for a in res["alternativas"]],
+        vivo.get("trenes", []), llegadas, res["dia"], vivo.get("ts"))
     return {"origen": origen, "destino": destino, "ts": vivo.get("ts"),
-            "alternativas": alts}
+            "dia": res["dia"], "ventana": res["ventana"], "alternativas": alts}
 
 
 @app.get("/api/registro")

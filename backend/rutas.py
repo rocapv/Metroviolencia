@@ -27,6 +27,8 @@ from . import horarios
 MARGEN_D = 150       # m de tolerancia al comparar posiciones sobre la vía
 TOKEN_TTL = 1800     # s que se reutiliza el auth_token del planificador
 CACHE_TTL = 50       # s que se reutiliza una misma consulta (o, d)
+ETA_PRECISA = 3600   # s: desde aquí la web da "1 h"/"2 h" sin minutos
+VENTANA_CASE = 900   # s: un tren en vivo se casa con una salida programada a <15 min
 
 _ALT_RE = re.compile(r'js-ruta-opcion')
 _PASO_RE = re.compile(r'Paso\s*<span>\s*(\d+)\s*</span>(.*?)(?=Paso\s*<span>|$)', re.S)
@@ -98,34 +100,55 @@ def _get_token(session, headers, verify) -> str:
     return tok
 
 
-def consultar_ruta(session, headers, verify, origen: int, destino: int) -> list[dict]:
-    """Alternativas del planificador para salir desde ahora (ventana de 2 h)."""
+def _pedir(session, headers, verify, origen, destino, dia, desde, hasta) -> list[dict]:
     global _token
+    for intento in range(2):          # el token puede caducar: reintenta con uno nuevo
+        tok = _get_token(session, headers, verify)
+        data = (f"auth_token={tok}&action=horarios-ruta&origen={origen}"
+                f"&destino={destino}&dia={dia}&horaDesde={desde}&horaHasta={hasta}")
+        r = session.post(horarios.NOWP_URL, data={"action": "formularios_ajax", "data": data},
+                         headers={**headers, "Referer": horarios.PLAN_URL}, timeout=30,
+                         verify=verify)
+        r.raise_for_status()
+        alts = parse_alternativas(r.json().get("html") or "")
+        if alts or intento:
+            return alts
+        _token = None
+    return []
+
+
+def _con_salidas(alts: list[dict]) -> bool:
+    return any(a["pasos"] and a["pasos"][0]["salidas"] for a in alts)
+
+
+def consultar_ruta(session, headers, verify, origen: int, destino: int) -> dict:
+    """Alternativas del planificador para salir desde ahora. Si en las próximas
+    2 h no sale ningún tren, amplía al resto del día y, si tampoco, a mañana:
+    así siempre se sabe CUÁNDO habrá tren. Devuelve {dia, ventana, alternativas}."""
     with _lock:
         c = _cache.get((origen, destino))
         if c and time.time() - c[0] < CACHE_TTL:
             return c[1]
     ahora = dt.datetime.now()
-    desde = (ahora - dt.timedelta(minutes=2)).strftime("%H:%M")
-    hasta = min(ahora + dt.timedelta(hours=2),
-                ahora.replace(hour=23, minute=59)).strftime("%H:%M")
-    for intento in range(2):          # el token puede caducar: reintenta con uno nuevo
-        tok = _get_token(session, headers, verify)
-        data = (f"auth_token={tok}&action=horarios-ruta&origen={origen}"
-                f"&destino={destino}&dia={ahora.date().isoformat()}"
-                f"&horaDesde={desde}&horaHasta={hasta}")
-        r = session.post(horarios.NOWP_URL, data={"action": "formularios_ajax", "data": data},
-                         headers={**headers, "Referer": horarios.PLAN_URL}, timeout=30,
-                         verify=verify)
-        r.raise_for_status()
-        j = r.json()
-        alts = parse_alternativas(j.get("html") or "")
-        if alts or intento:
-            break
-        _token = None
+    hoy = ahora.date().isoformat()
+    # 20 min hacia atrás: un tren que va tarde aún tiene que casar con su hora
+    desde = max(ahora - dt.timedelta(minutes=20),
+                ahora.replace(hour=0, minute=0)).strftime("%H:%M")
+    fin_2h = ahora + dt.timedelta(hours=2)
+    hasta = "23:59" if fin_2h.date() != ahora.date() else fin_2h.strftime("%H:%M")
+    res = {"dia": hoy, "ventana": "2h",
+           "alternativas": _pedir(session, headers, verify, origen, destino, hoy, desde, hasta)}
+    if not _con_salidas(res["alternativas"]) and hasta != "23:59":
+        res = {"dia": hoy, "ventana": "hoy",
+               "alternativas": _pedir(session, headers, verify, origen, destino, hoy, desde, "23:59")}
+    if not _con_salidas(res["alternativas"]):
+        manana = (ahora.date() + dt.timedelta(days=1)).isoformat()
+        res = {"dia": manana, "ventana": "manana",
+               "alternativas": _pedir(session, headers, verify, origen, destino,
+                                      manana, "00:00", "23:59")}
     with _lock:
-        _cache[(origen, destino)] = (time.time(), alts)
-    return alts
+        _cache[(origen, destino)] = (time.time(), res)
+    return res
 
 
 # ----------------------------------------------------------- líneas y trenes
@@ -193,13 +216,42 @@ def trenes_paso(net, trenes: list[dict], linea: int, s: int, t: int,
     return out
 
 
+def _ts(dia: str, hhmm: str) -> int:
+    return int(time.mktime(dt.datetime.strptime(f"{dia} {hhmm}", "%Y-%m-%d %H:%M").timetuple()))
+
+
+def desfases(trenes_p: list[dict], salidas: list[str], dia: str, ts_datos: int) -> None:
+    """Casa cada tren en vivo (hora real prevista en la estación de subida =
+    ts_datos + eta) con su salida PROGRAMADA más cercana (±VENTANA_CASE) y
+    anota hora_prog y desfase_s (+ retraso, − adelanto)."""
+    prog = sorted(_ts(dia, h) for h in salidas)
+    usadas: set[int] = set()
+    for t in sorted(trenes_p, key=lambda x: (x["eta_subida"] is None, x["eta_subida"] or 0)):
+        t["hora_prog"] = t["desfase_s"] = None
+        if t["eta_subida"] is None or t["eta_subida"] >= ETA_PRECISA:
+            continue          # "1 h" no trae minutos: no sirve para medir desfase
+        real = ts_datos + t["eta_subida"]
+        cands = [p for p in prog if p not in usadas and abs(real - p) <= VENTANA_CASE]
+        if not cands:
+            continue
+        p = min(cands, key=lambda x: abs(real - x))
+        usadas.add(p)
+        t["hora_prog"] = dt.datetime.fromtimestamp(p).strftime("%H:%M")
+        t["desfase_s"] = real - p
+
+
 def enriquecer(net, alts: list[dict], trenes: list[dict],
-               llegadas: dict[int, list[tuple[int, str, int]]]) -> list[dict]:
-    """Añade ids de estación, líneas y trenes en vivo a cada paso."""
+               llegadas: dict[int, list[tuple[int, str, int]]],
+               dia: str | None = None, ts_datos: int | None = None) -> list[dict]:
+    """Añade ids de estación, líneas, trenes en vivo (con desfase frente al
+    horario) y la próxima salida programada a cada paso."""
+    ahora = time.time()
     for alt in alts:
         for p in alt["pasos"]:
             s, t = net.id_por_nombre(p["de"] or ""), net.id_por_nombre(p["a"] or "")
             p["de_id"], p["a_id"] = s, t
+            futuras = [h for h in p["salidas"] if dia and _ts(dia, h) >= ahora - 60]
+            p["proxima_prog"] = futuras[0] if futuras else None
             if s is None or t is None:
                 p["lineas"], p["trenes"] = [], []
                 continue
@@ -208,4 +260,6 @@ def enriquecer(net, alts: list[dict], trenes: list[dict],
             p["trenes"] = [x for lin in p["lineas"]
                            for x in trenes_paso(net, trenes, lin, s, t, llegadas.get(s, []))]
             p["trenes"].sort(key=lambda x: (x["eta_subida"] is None, x["eta_subida"] or 0))
+            if dia and ts_datos:
+                desfases(p["trenes"], p["salidas"], dia, ts_datos)
     return alts
