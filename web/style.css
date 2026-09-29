@@ -192,3 +192,89 @@ html, body {
 
 .link-registre { display: block; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .link-registre:hover { color: var(--txt); }
+
+/* mapa base OSM de reserva (sense WebGL): enfosquit */
+.osm-fosc { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.4); }
+.leaflet-control-attribution {
+  background: rgba(13, 13, 18, 0.7) !important; color: var(--muted) !important; font-size: 10px;
+}
+.leaflet-control-attribution a { color: var(--muted) !important; }
+
+/* menú superior dret */
+#menu {
+  position: absolute; top: 12px; right: 12px; z-index: 1001;
+  display: flex; gap: 6px;
+}
+#menu button, .panel button {
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--txt);
+  background: var(--panel); border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px; padding: 7px 12px; cursor: pointer; backdrop-filter: blur(10px);
+}
+#menu button.on, .panel button.on { border-color: var(--viol); color: #fff; }
+.panel button.primari { background: var(--viol); border-color: var(--viol); color: #fff; }
+
+.panel {
+  position: absolute; top: 56px; right: 12px; z-index: 1001;
+  width: 340px; max-height: calc(100% - 120px); overflow-y: auto;
+  background: var(--panel); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px;
+  padding: 12px 14px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); font-size: 13px;
+}
+.panel[hidden] { display: none; }
+.panel-cap { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.panel-cap b { font-size: 15px; }
+.panel .panel-tanca { padding: 2px 9px; font-size: 16px; }
+@media (max-width: 520px) {
+  .panel { left: 12px; right: 12px; width: auto; }
+}
+
+/* ruta */
+.ruta-form { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.ruta-form input {
+  grid-column: 1; font: inherit; color: var(--txt); background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; padding: 7px 9px; min-width: 0;
+}
+.ruta-form #ruta-swap { grid-column: 2; grid-row: 1 / span 2; padding: 4px 10px; }
+.ruta-acc { display: flex; gap: 6px; margin-top: 8px; }
+.ruta-nomes { display: flex; gap: 6px; align-items: center; margin: 10px 0 4px; color: var(--muted); }
+.ruta-err { color: #f87171; }
+.ruta-muted { color: var(--muted); }
+.ruta-alts { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; }
+.ruta-alts button { padding: 4px 8px; font-size: 12px; }
+.ruta-pas { border-left: 2px solid rgba(255, 255, 255, 0.15); padding: 2px 0 8px 10px; margin: 8px 0 0 8px; }
+.ruta-pas-cap { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.ruta-n {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; margin-left: -20px;
+  border-radius: 50%; background: var(--viol); color: #fff; font-size: 11px; font-weight: 700;
+}
+.ruta-dir, .ruta-horari { color: var(--muted); font-size: 12px; margin: 2px 0 4px; }
+.ruta-tren { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.ruta-tren .arr-eta { margin-left: auto; }
+.ruta-baixa { margin-top: 4px; }
+.pop-ruta { display: flex; gap: 6px; margin: 6px 0; }
+.pop-ruta button {
+  font: inherit; font-size: 12px; color: #fff; background: #2a2a36;
+  border: 1px solid #ffffff22; border-radius: 6px; padding: 3px 8px; cursor: pointer;
+}
+
+/* retards */
+.ret-tipus { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.tipus-chip { font-size: 11px; padding: 1px 7px; border-radius: 9px; border: 1px solid #ffffff22; }
+.c-blau { color: #38bdf8; } .c-verd { color: #4ade80; } .c-roig { color: #f87171; } .c-anyil { color: #a5a3e0; }
+.ret-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.ret-kpis div { background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 6px 8px; }
+.ret-kpis b { display: block; font-size: 18px; }
+.ret-kpis span { color: var(--muted); font-size: 11px; }
+.ret-kpis .k-tard b { color: #f59e0b; } .ret-kpis .k-canc b { color: #ef4444; }
+.ret-tabs { display: flex; gap: 5px; margin-bottom: 8px; }
+.ret-tabs button { padding: 4px 9px; font-size: 12px; }
+.ret-fila {
+  display: grid; grid-template-columns: 42px auto 1fr; grid-template-rows: auto auto;
+  column-gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px solid #ffffff0d;
+}
+.ret-hora { font-variant-numeric: tabular-nums; font-weight: 600; }
+.ret-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ret-est { grid-column: 2 / span 2; color: var(--muted); font-size: 12px; }
+.ret-fila.tard .ret-est b { color: #f59e0b; }
+.ret-fila.canc .ret-est { color: #ef4444; font-weight: 700; }
+.ret-link { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; }

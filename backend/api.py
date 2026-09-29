@@ -5,6 +5,7 @@ Endpoints:
     GET /api/network   -> geometría estática (líneas, estaciones, colores)
     GET /api/trains    -> trenes estimados del último snapshot
     GET /api/arrivals  -> llegadas crudas del último snapshot (por estación)
+    GET /api/ruta      -> ruta origen->destino y trenes en vivo a coger (?origen=&destino=)
     GET /api/registro  -> salidas programadas vs reales de un día (?dia=YYYY-MM-DD)
     GET /api/health    -> estado
 
@@ -22,7 +23,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import salidas
+from . import rutas, salidas
 from .calendario import tipo as tipo_dia
 from .network import load_network
 from .positions import estimar
@@ -193,6 +194,46 @@ def trains():
     return {"ts": snap["ts"], "edad_seg": int(time.time()) - snap["ts"],
             "srv_ms": int(time.time() * 1000),
             "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap["id"])}
+
+
+_net_cache = None
+_sesion = None
+
+
+def _net():
+    global _net_cache
+    if _net_cache is None:
+        _net_cache = load_network()
+    return _net_cache
+
+
+@app.get("/api/ruta")
+def ruta(origen: int, destino: int):
+    """Alternativas del planificador oficial + trenes en vivo de cada paso."""
+    global _sesion
+    from .poller import HEADERS, VERIFY, make_session
+    if origen == destino:
+        return JSONResponse({"error": "origen y destino iguales"}, status_code=400)
+    net = _net()
+    if origen not in net.estaciones or destino not in net.estaciones:
+        return JSONResponse({"error": "estación desconocida"}, status_code=400)
+    _sesion = _sesion or make_session()
+    try:
+        alts = rutas.consultar_ruta(_sesion, HEADERS, VERIFY, origen, destino)
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": f"planificador no disponible: {e}"}, status_code=502)
+    vivo = trains()
+    con = _con()
+    snap = _last_snapshot(con)
+    llegadas: dict[int, list] = {}
+    if snap:
+        for r in con.execute("SELECT estacion_id,linea,destino,eta_seg FROM arrivals "
+                             "WHERE snapshot_id=?", (snap["id"],)):
+            llegadas.setdefault(r[0], []).append((r[1], r[2], r[3]))
+    alts = rutas.enriquecer(net, [dict(a, pasos=[dict(p) for p in a["pasos"]]) for a in alts],
+                            vivo.get("trenes", []), llegadas)
+    return {"origen": origen, "destino": destino, "ts": vivo.get("ts"),
+            "alternativas": alts}
 
 
 @app.get("/api/registro")

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>Metroviolencia · trens en directe · Metrovalència</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,7 +26,44 @@
 
   <div id="reloj"></div>
 
+  <nav id="menu">
+    <button id="btn-ruta" data-panel="panel-ruta">Ruta</button>
+    <button id="btn-retards" data-panel="panel-retards">Retards</button>
+  </nav>
+
+  <section id="panel-ruta" class="panel" hidden>
+    <div class="panel-cap"><b>Calcula la ruta</b><button class="panel-tanca" aria-label="Tanca">×</button></div>
+    <div class="ruta-form">
+      <input id="ruta-orig" list="ruta-est" placeholder="Origen" autocomplete="off">
+      <button id="ruta-swap" title="Inverteix" aria-label="Inverteix origen i destí">⇅</button>
+      <input id="ruta-dest" list="ruta-est" placeholder="Destí" autocomplete="off">
+      <datalist id="ruta-est"></datalist>
+    </div>
+    <div class="ruta-acc">
+      <button id="ruta-calc" class="primari">Calcula</button>
+      <button id="ruta-esborra">Esborra</button>
+    </div>
+    <label class="ruta-nomes"><input type="checkbox" id="ruta-nomes" checked> Mostra només els trens que he d'agafar</label>
+    <div id="ruta-res"></div>
+  </section>
+
+  <section id="panel-retards" class="panel" hidden>
+    <div class="panel-cap"><b>Retards i cancel·lacions</b><button class="panel-tanca" aria-label="Tanca">×</button></div>
+    <div id="ret-tipus" class="ret-tipus"></div>
+    <div id="ret-kpis" class="ret-kpis"></div>
+    <div class="ret-tabs">
+      <button data-f="tard" class="on">Van tard</button>
+      <button data-f="cancelada">Cancel·lats</button>
+      <button data-f="tots">Tots</button>
+    </div>
+    <div id="ret-llista"></div>
+    <a class="ret-link" href="registre.html">Registre complet del dia →</a>
+  </section>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
   <script src="app.js"></script>
+  <script src="panells.js"></script>
 </body>
 </html>

@@ -8,14 +8,33 @@ const NOMBRES_LINEA = {
   6: "L6", 7: "L7", 8: "L8", 9: "L9", 10: "L10",
 };
 
-const map = L.map("map", { zoomControl: false, attributionControl: false })
+const map = L.map("map", { zoomControl: false })
   .setView([39.47, -0.38], 12);
+map.attributionControl.setPrefix(false);
 
 L.control.zoom({ position: "bottomleft" }).addTo(map);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
-  { maxZoom: 19, subdomains: "abcd" }).addTo(map);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png",
-  { maxZoom: 19, subdomains: "abcd", opacity: 0.7 }).addTo(map);
+
+// Mapa base OBERT, sense API key: OpenFreeMap (codi obert, dades d'OpenStreetMap),
+// en vectorial amb MapLibre. Si el dispositiu no té WebGL, teseles raster d'OSM
+// enfosquides per CSS.
+function teWebGL() {
+  try {
+    const c = document.createElement("canvas");
+    return !!(c.getContext("webgl") || c.getContext("experimental-webgl"));
+  } catch (e) { return false; }
+}
+if (window.maplibregl && L.maplibreGL && teWebGL()) {
+  L.maplibreGL({
+    style: "https://tiles.openfreemap.org/styles/dark",
+    attribution: '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> · ' +
+      '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
+  }).addTo(map);
+} else {
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, className: "osm-fosc",
+    attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
+  }).addTo(map);
+}
 
 const lineasVisibles = new Set();
 const trenLayer = L.layerGroup().addTo(map);
@@ -30,6 +49,7 @@ let estacionesRetorno = new Set(); // capçaleres/retorns on els trens descansen
 let lineLayers = {};               // lid -> [capes de via/connectors] per al toggle
 let porNomGlobal = {};             // nom estació -> objecte estació
 let arrivalsCache = { ts: 0, estaciones: {} };
+let rutaFiltre = null;             // Set d'ids de tren de la ruta activa (null = tots)
 
 // Compensació de ping/rellotge: el servidor (Raspa) marca el temps dels trens amb
 // EL SEU rellotge (data.ts / srv_ms), però el client interpola amb el SEU. Si els
@@ -389,6 +409,7 @@ function pintarTrenes(trenes) {
   const nuevos = [];
   for (const t of trenes) {
     if (!lineasVisibles.has(t.linea)) continue;
+    if (rutaFiltre && !rutaFiltre.has(t.id)) continue;   // només els trens de la ruta
     const ll = posicioViva(t);
     let best = null, bestD = Infinity;
     // 1r: emparella pel track_id persistent (mateix tren físic entre pulls)
@@ -585,8 +606,13 @@ async function obrirPopupEstacio(m) {
   cont.innerHTML =
     `<div class="pop-est-nom">${m.estNom}</div>` +
     `<div class="pop-est-lin">${chips}</div>` +
+    `<div class="pop-ruta"><button data-r="orig">Des d'ací</button><button data-r="dest">Fins ací</button></div>` +
     `<div class="pop-arr-tit">Pròximes arribades</div>` +
     `<div class="pop-arr">carregant…</div>`;
+  cont.querySelectorAll(".pop-ruta button").forEach((b) => b.onclick = () => {
+    map.closePopup();
+    if (window.rutaFixa) window.rutaFixa(b.dataset.r, m.estNom);
+  });
   L.popup({ maxWidth: 300, minWidth: 230 }).setLatLng(m.getLatLng()).setContent(cont).openOn(map);
   if (serverNow() / 1000 - arrivalsCache.ts > 20) {
     try { arrivalsCache = await (await fetch(API + "api/arrivals?_=" + Date.now(), { cache: "no-store" })).json(); } catch (e) {}
@@ -663,6 +689,7 @@ async function refrescar() {
     actualitzaCongelats(ultimoTrenes);
     pintarTrenes(ultimoTrenes);
     pintarNoinfo();
+    if (window.refrescaPanells) window.refrescaPanells();
     const edad = data.edad_seg == null ? "—" : data.edad_seg + " s";
     const ni = noinfo.length ? `<br><span style="color:#e8c07a">sense info: ${noinfo.map(l=>"L"+l).join(", ")}</span>` : "";
     const ping = pingMs ? `<br><span style="opacity:.65">ping ${Math.round(pingMs)} ms</span>` : "";
@@ -697,6 +724,7 @@ function tickSegon() {
 
 (async function main() {
   await cargarRed();
+  if (window.iniciaPanells) window.iniciaPanells();
   await refrescar();
   setInterval(refrescar, REFRESH_MS);
   setInterval(animar, ANIM_MS);
