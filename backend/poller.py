@@ -25,7 +25,7 @@ from pathlib import Path
 
 import requests
 
-from . import horarios, salidas
+from . import horarios, pasos, salidas
 from .network import load_network
 from .parser import parse_arrivals
 from .positions import estimar
@@ -153,6 +153,7 @@ def init_db() -> sqlite3.Connection:
     con.commit()
     horarios.init_db(con)
     salidas.init_db(con)
+    pasos.init_db(con)
     return con
 
 
@@ -209,6 +210,8 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
 
     # SALIDAS reales desde cabecera (registro programado vs real)
     sal = salidas.actualizar(con, ts, por_estacion)
+    # PASOS reales por TODAS las estaciones (retrasos en ruta)
+    pas = pasos.actualizar(con, ts, por_estacion, net)
 
     # TRACKING: estima los trenes físicos de esta pasada y les da identidad
     # persistente (track_id), siguiéndolos desde el snapshot anterior.
@@ -218,7 +221,8 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
     print(f"[{time.strftime('%H:%M:%S')}] snapshot {snap_id}: "
           f"{ok}/{len(net.estaciones)} estaciones, {len(rows)} llegadas, "
           f"{n_tr} trenes, NoInfo: {faltan}, salidas: {sal['salen']} "
-          f"(+{sal['nuevas']} previstas, {sal['desaparecen']} caídas)")
+          f"(+{sal['nuevas']} previstas, {sal['desaparecen']} caídas), "
+          f"pasos: {pas['salen']}")
     return snap_id
 
 
@@ -280,6 +284,10 @@ def _descargar_horarios() -> None:
             n = horarios.descargar_dia(con, s, HEADERS, VERIFY, d.isoformat(), net)
             if n:
                 print(f"horario {d}: {n} salidas programadas descargadas")
+        for d in (hoy, hoy + dt.timedelta(days=1)):   # horario de paso (~7 min/día)
+            n = pasos.descargar_dia(con, s, HEADERS, VERIFY, d.isoformat(), net)
+            if n:
+                print(f"horario de paso {d}: {n} horas descargadas")
         con.close()
     except Exception as e:  # noqa: BLE001
         print("error descargando horario:", e)

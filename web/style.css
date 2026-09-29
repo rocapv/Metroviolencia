@@ -288,3 +288,9 @@ html, body {
 .ruta-desf.avanc { color: #38bdf8; }
 .ruta-tren .arr-dest { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ruta-canc { color: #f87171; font-size: 12px; margin: 3px 0; }
+.ret-tabs { flex-wrap: wrap; }
+.ret-linies { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 6px 0 10px; }
+.ret-lin { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  background: rgba(255,255,255,.05); border-radius: 7px; padding: 4px 7px; }
+.ret-lin small { color: var(--muted); width: 100%; font-size: 11px; }
+.ret-lin small b { color: #f59e0b; }

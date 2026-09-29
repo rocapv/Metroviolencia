@@ -6,6 +6,7 @@ Endpoints:
     GET /api/trains    -> trenes estimados del último snapshot
     GET /api/arrivals  -> llegadas crudas del último snapshot (por estación)
     GET /api/ruta      -> ruta origen->destino y trenes en vivo a coger (?origen=&destino=)
+    GET /api/retards_ruta -> retrasos al pasar por cada estación (?dia=YYYY-MM-DD)
     GET /api/registro  -> salidas programadas vs reales de un día (?dia=YYYY-MM-DD)
     GET /api/health    -> estado
 
@@ -23,7 +24,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import rutas, salidas
+from . import pasos, rutas, salidas
 from .calendario import tipo as tipo_dia
 from .network import load_network
 from .positions import estimar
@@ -235,6 +236,37 @@ def ruta(origen: int, destino: int):
         vivo.get("trenes", []), llegadas, res["dia"], vivo.get("ts"))
     return {"origen": origen, "destino": destino, "ts": vivo.get("ts"),
             "dia": res["dia"], "ventana": res["ventana"], "alternativas": alts}
+
+
+_ret_cache: dict[str, tuple[float, dict]] = {}
+
+
+@app.get("/api/retards_ruta")
+def retards_ruta(dia: str | None = None):
+    """Retrasos EN RUTA: pasos reales por cada estación frente a su horario."""
+    import datetime as dt
+    dia = dia or dt.date.today().isoformat()
+    try:
+        dt.date.fromisoformat(dia)
+    except ValueError:
+        return JSONResponse({"error": "dia inválido"}, status_code=400)
+    c = _ret_cache.get(dia)
+    if c and time.time() - c[0] < 55:
+        return c[1]
+    con = _con()
+    try:
+        filas = pasos.retrasos(con, _net(), dia)
+    except sqlite3.OperationalError:
+        filas = []
+    ahora = int(time.time())
+    tarde = [f for f in filas if f["retraso_s"] >= pasos.TARDE and f["ts_paso"] >= ahora - 2700]
+    tarde.sort(key=lambda f: -f["ts_paso"])
+    res = {"dia": dia, "ahora": ahora, "n_pasos": len(filas),
+           "ultima_hora": pasos.resumen_lineas(filas, ahora - 3600),
+           "dia_completo": pasos.resumen_lineas(filas),
+           "tarde_recientes": tarde[:120]}
+    _ret_cache[dia] = (time.time(), res)
+    return res
 
 
 @app.get("/api/registro")

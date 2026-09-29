@@ -64,14 +64,28 @@ def init_db(con: sqlite3.Connection) -> None:
     con.commit()
 
 
-def actualizar(con: sqlite3.Connection, ts: int, por_estacion: dict[int, list]) -> dict:
-    """por_estacion: {estacion_id: [(linea, destino, eta_seg), ...]} con SOLO
-    las estaciones leídas bien en esta pasada. Devuelve contadores."""
+def seguir(con: sqlite3.Connection, tabla: str, ts: int, estaciones: list[dict],
+           por_estacion: dict[int, list]) -> dict:
+    """Seguimiento genérico tren-a-tren de las llegadas anunciadas en un conjunto
+    de estaciones. `estaciones`: [{id, nombre, lineas}] (lineas None = todas).
+    En `tabla` (salidas_obs o pasos_obs, mismo esquema; `origen_id` es la
+    estación observada) cada tren anunciado queda en_espera hasta que deja de
+    anunciarse: 'salida' si ya le tocaba (salió/pasó), 'desaparecida' si no."""
     cont = {"salen": 0, "nuevas": 0, "desaparecen": 0}
-    for cab in CABECERAS:
-        sid = cab["id"]
+    ids = [e["id"] for e in estaciones if e["id"] in por_estacion]
+    if not ids:
+        return cont
+    abiertas_por: dict[int, dict[tuple, list]] = {}
+    for r in con.execute(
+            f"SELECT id,linea,destino,ts_pred,ts_ultima,estado,origen_id FROM {tabla} "
+            f"WHERE estado='en_espera' OR (estado='desaparecida' AND ts_ultima>=?)",
+            (ts - REAPARECE,)):
+        abiertas_por.setdefault(r[6], {}).setdefault((r[1], r[2]), []).append(list(r[:6]))
+    for est in estaciones:
+        sid = est["id"]
         if sid not in por_estacion:
-            continue          # sin lectura de esta cabecera: no se envejece nada
+            continue          # sin lectura de esta estación: no se envejece nada
+        lineas = est.get("lineas")
         obs: dict[tuple, list[int]] = {}
         for linea, destino, eta in por_estacion[sid]:
             # ETA >= 1 h llega como "1 h"/"2 h" sin minutos (error de hasta
@@ -79,14 +93,9 @@ def actualizar(con: sqlite3.Connection, ts: int, por_estacion: dict[int, list]) 
             # bajar de 60 min, con resolución de minuto.
             if eta >= HORIZONTE:
                 continue
-            if linea in cab["lineas"] and destino and destino != cab["nombre"]:
+            if (lineas is None or linea in lineas) and destino and destino != est["nombre"]:
                 obs.setdefault((linea, destino), []).append(ts + eta)
-        abiertas: dict[tuple, list] = {}
-        for r in con.execute(
-            "SELECT id,linea,destino,ts_pred,ts_ultima,estado FROM salidas_obs "
-            "WHERE origen_id=? AND (estado='en_espera' OR "
-            "(estado='desaparecida' AND ts_ultima>=?))", (sid, ts - REAPARECE)):
-            abiertas.setdefault((r[1], r[2]), []).append(list(r))
+        abiertas = abiertas_por.get(sid, {})
 
         for clave in set(obs) | set(abiertas):
             preds = sorted(obs.get(clave, []))
@@ -101,12 +110,12 @@ def actualizar(con: sqlite3.Connection, ts: int, por_estacion: dict[int, list]) 
                     continue
                 usadas_p.add(i); usadas_e.add(j)
                 con.execute(
-                    "UPDATE salidas_obs SET ts_ultima=?, ts_pred=?, n_vistas=n_vistas+1,"
+                    f"UPDATE {tabla} SET ts_ultima=?, ts_pred=?, n_vistas=n_vistas+1,"
                     " estado='en_espera' WHERE id=?", (ts, preds[i], ents[j][0]))
             for i, p in enumerate(preds):
                 if i not in usadas_p:
                     con.execute(
-                        "INSERT INTO salidas_obs(origen_id,linea,destino,ts_primera,"
+                        f"INSERT INTO {tabla}(origen_id,linea,destino,ts_primera,"
                         "ts_ultima,pred_inicial,ts_pred,estado) VALUES (?,?,?,?,?,?,?,"
                         "'en_espera')", (sid, clave[0], clave[1], ts, ts, p, p))
                     cont["nuevas"] += 1
@@ -115,20 +124,25 @@ def actualizar(con: sqlite3.Connection, ts: int, por_estacion: dict[int, list]) 
                     continue
                 eid, _l, _d, pred, ultima, _e = e
                 if ts - ultima > HUECO_MAX:
-                    con.execute("UPDATE salidas_obs SET estado='sin_datos' WHERE id=?",
-                                (eid,))
+                    con.execute(f"UPDATE {tabla} SET estado='sin_datos' WHERE id=?", (eid,))
                 elif pred <= ts + PROX:
                     # salió entre la última vez que se vio y ahora
                     salida = max(ultima, min(pred, ts))
-                    con.execute("UPDATE salidas_obs SET estado='salida', ts_salida=?"
+                    con.execute(f"UPDATE {tabla} SET estado='salida', ts_salida=?"
                                 " WHERE id=?", (salida, eid))
                     cont["salen"] += 1
                 else:
-                    con.execute("UPDATE salidas_obs SET estado='desaparecida' WHERE id=?",
+                    con.execute(f"UPDATE {tabla} SET estado='desaparecida' WHERE id=?",
                                 (eid,))
                     cont["desaparecen"] += 1
     con.commit()
     return cont
+
+
+def actualizar(con: sqlite3.Connection, ts: int, por_estacion: dict[int, list]) -> dict:
+    """Salidas desde cabecera. por_estacion: {estacion_id: [(linea, destino,
+    eta_seg), ...]} con SOLO las estaciones leídas bien en esta pasada."""
+    return seguir(con, "salidas_obs", ts, CABECERAS, por_estacion)
 
 
 # ---------------------------------------------------------------- registro

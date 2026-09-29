@@ -169,7 +169,10 @@
   let registre = null;
   let filtreRet = "tard";
 
+  let enRuta = null;
+
   async function carregaRetards() {
+    if (filtreRet === "ruta") return carregaEnRuta();
     try {
       const r = await fetch("api/registro?_=" + Date.now(), { cache: "no-store" });
       registre = await r.json();
@@ -177,6 +180,40 @@
     } catch (e) {
       $("ret-llista").innerHTML = "<p class='ruta-err'>Sense connexió amb el registre.</p>";
     }
+  }
+
+  async function carregaEnRuta() {
+    try {
+      const r = await fetch("api/retards_ruta?_=" + Date.now(), { cache: "no-store" });
+      enRuta = await r.json();
+      pintaEnRuta();
+    } catch (e) {
+      $("ret-llista").innerHTML = "<p class='ruta-err'>Sense connexió amb el registre.</p>";
+    }
+  }
+
+  // retards en passar per cada estació (no sols en l'eixida de capçalera)
+  function pintaEnRuta() {
+    document.querySelectorAll(".ret-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.f === "ruta"));
+    const uh = enRuta.ultima_hora || {};
+    const tot = Object.values(uh).reduce((a, r) => a + r.n, 0);
+    const tard = Object.values(uh).reduce((a, r) => a + r.tarde, 0);
+    $("ret-kpis").innerHTML = `
+      <div><b>${tot}</b><span>passos mesurats (última hora)</span></div>
+      <div class="k-tard"><b>${tard}</b><span>passos tard (≥${RETARD_MIN / 60} min)</span></div>`;
+    const linies = Object.entries(uh).map(([l, r]) =>
+      `<div class="ret-lin">${chip(Number(l))}<span>${fmtRet(r.mediana_s)}</span>
+        <small>${r.tarde ? `<b>${r.tarde}</b> tard · ` : ""}${r.n} passos</small></div>`).join("");
+    const files = (enRuta.tarde_recientes || []).map((f) => `
+      <div class="ret-fila tard">
+        <span class="ret-hora">${hm(f.ts_paso)}</span>${chip(f.linea)}
+        <span class="ret-txt">${esc(f.estacion)} → ${esc(f.destino)}</span>
+        <span class="ret-est">programat ${hm(f.ts_prog)} <b>${fmtRet(f.retraso_s)}</b></span></div>`).join("");
+    $("ret-llista").innerHTML =
+      `<p class="ruta-muted">Retard medià per línia en l'última hora, en passar per les estacions:</p>
+       <div class="ret-linies">${linies || "<span class='ruta-muted'>encara sense dades</span>"}</div>
+       <p class="ruta-muted">Trens que han passat tard en els últims 45 min:</p>
+       ${files || "<p class='ruta-muted'>Cap ara mateix.</p>"}`;
   }
 
   function pintaRetards() {
@@ -226,7 +263,9 @@
     };
     $("ruta-nomes").onchange = aplicaFiltre;
     document.querySelectorAll(".ret-tabs button").forEach((b) => b.onclick = () => {
-      filtreRet = b.dataset.f; if (registre) pintaRetards();
+      filtreRet = b.dataset.f;
+      if (filtreRet === "ruta") carregaEnRuta();
+      else if (registre) pintaRetards(); else carregaRetards();
     });
     const g = llig("mv_ruta");
     if (g && g.o && g.d) { $("ruta-orig").value = g.o; $("ruta-dest").value = g.d; calcula(true); }
