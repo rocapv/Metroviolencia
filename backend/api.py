@@ -251,7 +251,8 @@ def retards_ruta(dia: str | None = None):
     except ValueError:
         return JSONResponse({"error": "dia inválido"}, status_code=400)
     c = _ret_cache.get(dia)
-    if c and time.time() - c[0] < 55:
+    # un día ya cerrado no cambia: su cálculo (~6 s en la Raspa) vale para siempre
+    if c and (dia < dt.date.today().isoformat() or time.time() - c[0] < 55):
         return c[1]
     con = _con()
     try:

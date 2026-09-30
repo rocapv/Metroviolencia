@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS pasos_obs (
     ts_salida   INTEGER             -- hora de paso estimada
 );
 CREATE INDEX IF NOT EXISTS idx_pasos_abiertos ON pasos_obs(estado);
+-- seguir(): abiertas = en_espera OR (desaparecida AND ts_ultima reciente)
+CREATE INDEX IF NOT EXISTS idx_pasos_obs_estado_ult ON pasos_obs(estado, ts_ultima);
 CREATE INDEX IF NOT EXISTS idx_pasos_ts ON pasos_obs(ts_salida);
 
 CREATE TABLE IF NOT EXISTS horario_paso (

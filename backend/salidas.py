@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS salidas_obs (
     ts_salida   INTEGER             -- estimada (solo si estado=salida)
 );
 CREATE INDEX IF NOT EXISTS idx_sal_abiertas ON salidas_obs(estado, origen_id);
+-- seguir(): abiertas = en_espera OR (desaparecida AND ts_ultima reciente)
+CREATE INDEX IF NOT EXISTS idx_salidas_obs_estado_ult ON salidas_obs(estado, ts_ultima);
 CREATE INDEX IF NOT EXISTS idx_sal_pred ON salidas_obs(origen_id, ts_pred);
 """
 

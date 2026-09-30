@@ -146,9 +146,11 @@ def _restar_paso(con, dia: str, cab: dict, por_destino: dict, log) -> bool:
 
 
 def descargar_dia(con: sqlite3.Connection, session, headers, verify,
-                  dia: str, net, log=print) -> int:
+                  dia: str, net, log=print, destinos=None) -> int:
     """Descarga el horario de todas las cabeceras para `dia`. Idempotente:
-    salta las cabeceras ya descargadas. Devuelve nº de salidas nuevas."""
+    salta las cabeceras ya descargadas. Devuelve nº de salidas nuevas.
+    `destinos(cab)` -> [(destino, linea, veces)] sustituye a destinos_de (para
+    días pasados: lo que circulaba ESA semana, no lo de ahora)."""
     init_db(con)
     hechas = {r[0] for r in con.execute(
         "SELECT origen_id FROM horario_descargas WHERE dia=?", (dia,))}
@@ -162,7 +164,7 @@ def descargar_dia(con: sqlite3.Connection, session, headers, verify,
         por_destino: dict[str, set[str]] = {}
         lin_de: dict[str, set[int]] = {}
         vistos: dict[str, int] = {}
-        for dest_nom, linea, n in destinos_de(con, cab):
+        for dest_nom, linea, n in (destinos(cab) if destinos else destinos_de(con, cab)):
             lin_de.setdefault(dest_nom, set()).add(linea)
             vistos[dest_nom] = vistos.get(dest_nom, 0) + n
         for dest_nom in list(lin_de):
