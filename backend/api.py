@@ -271,11 +271,19 @@ def retards_ruta(dia: str | None = None):
     if c and (dia < dt.date.today().isoformat() or time.time() - c[0] < 55):
         return c[1]
     con = _con()
+    ahora = int(time.time())
+    # día antiguo ya resumido por la purga: sus pasos crudos ya no están
+    guardado = pasos.resumen_guardado(con, dia) if dia < dt.date.today().isoformat() else None
+    if guardado is not None:
+        res = {"dia": dia, "ahora": ahora, "n_pasos": sum(v["n"] for v in guardado.values()),
+               "ultima_hora": {}, "dia_completo": guardado, "tarde_recientes": [],
+               "resumido": True}
+        _ret_cache[dia] = (time.time(), res)
+        return res
     try:
         filas = pasos.retrasos(con, _net(), dia)
     except sqlite3.OperationalError:
         filas = []
-    ahora = int(time.time())
     tarde = [f for f in filas if f["retraso_s"] >= pasos.TARDE and f["ts_paso"] >= ahora - 2700]
     tarde.sort(key=lambda f: -f["ts_paso"])
     res = {"dia": dia, "ahora": ahora, "n_pasos": len(filas),

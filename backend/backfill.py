@@ -198,11 +198,9 @@ def fase_c(main, net, dias: list[str], log=print) -> None:
         hc = _horario_cab(main, dia)
         rep = next((r for r in reversed(reps.get(f, [])) if _horario_cab(main, r) == hc), None)
         if rep:
-            filas = main.execute("SELECT estacion_id, hacia_id, hora FROM horario_paso "
-                                 "WHERE dia=?", (rep,)).fetchall()
-            main.executemany(
-                "INSERT OR IGNORE INTO horario_paso(dia,estacion_id,hacia_id,ts_prog,hora)"
-                " VALUES (?,?,?,?,?)", [(dia, a, b, horarios._ts(dia, h), h) for a, b, h in filas])
+            # mismo horario: solo el puntero al representante (ver pasos.horario_paso_rep)
+            main.execute("INSERT OR REPLACE INTO horario_paso_rep(dia,rep,firma) "
+                         "SELECT ?, rep, firma FROM horario_paso_rep WHERE dia=?", (dia, rep))
             main.execute("INSERT OR REPLACE INTO horario_paso_desc(dia,estacion_id,hacia_id,n) "
                          "SELECT ?, estacion_id, hacia_id, n FROM horario_paso_desc WHERE dia=?",
                          (dia, rep))

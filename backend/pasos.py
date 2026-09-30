@@ -66,6 +66,43 @@ CREATE TABLE IF NOT EXISTS horario_paso_desc (
     n          INTEGER NOT NULL,
     PRIMARY KEY (dia, estacion_id, hacia_id)
 );
+-- Mismo tipo de día = mismo horario: las horas de paso se guardan UNA vez por
+-- tipo (el día "representante", rep=dia) y los demás días solo apuntan a él.
+-- `firma` = hash del contenido; el ts de cada hora se recalcula para el día
+-- pedido (horas_dia), así el cambio de hora no descuadra nada.
+CREATE TABLE IF NOT EXISTS horario_paso_rep (
+    dia   TEXT PRIMARY KEY,
+    rep   TEXT NOT NULL,
+    firma TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_paso_rep_firma ON horario_paso_rep(firma);
+-- Resumen de retrasos de días cerrados (lo que queda cuando pasos_obs se purga).
+CREATE TABLE IF NOT EXISTS retards_dia (
+    dia       TEXT    NOT NULL,
+    linea     INTEGER NOT NULL,
+    n         INTEGER NOT NULL,
+    mediana_s INTEGER NOT NULL,
+    p90_s     INTEGER NOT NULL,
+    tarde     INTEGER NOT NULL,
+    PRIMARY KEY (dia, linea)
+);
+CREATE TABLE IF NOT EXISTS retards_estacio (
+    dia         TEXT    NOT NULL,
+    linea       INTEGER NOT NULL,
+    estacion_id INTEGER NOT NULL,
+    hacia_id    INTEGER NOT NULL,
+    n           INTEGER NOT NULL,
+    mediana_s   INTEGER NOT NULL,
+    p90_s       INTEGER NOT NULL,
+    tarde       INTEGER NOT NULL,
+    PRIMARY KEY (dia, linea, estacion_id, hacia_id)
+);
+-- Días ya resumidos (aunque no casaran ningún paso): la purga no los repite.
+CREATE TABLE IF NOT EXISTS retards_resumits (
+    dia TEXT PRIMARY KEY,
+    n   INTEGER NOT NULL,
+    ts  INTEGER NOT NULL
+);
 """
 
 
@@ -122,7 +159,126 @@ def descargar_dia(con, session, headers, verify, dia: str, net, log=print) -> in
         total += len(horas)
         if (i + 1) % 50 == 0:
             log(f"  horario de paso {dia}: {i + 1}/{len(faltan)} pares")
+    dedupe_dia(con, dia, net, log)
     return total
+
+
+# ------------------------------------------------- horario por tipo de día
+
+def rep_de(con, dia: str) -> str:
+    """Día representante cuyo horario vale para `dia` (él mismo si no está mapeado)."""
+    try:
+        r = con.execute("SELECT rep FROM horario_paso_rep WHERE dia=?", (dia,)).fetchone()
+    except sqlite3.OperationalError:       # base sin la tabla todavía
+        return dia
+    return r[0] if r else dia
+
+
+def horas_dia(con, dia: str) -> list[tuple[int, int, int]]:
+    """[(estación, vecina, ts_prog)] del horario de paso de `dia`, con el ts
+    recalculado para ESE día a partir de la hora (el representante puede ser
+    otro día, incluso con distinto horario de verano)."""
+    rep = rep_de(con, dia)
+    filas = con.execute("SELECT estacion_id, hacia_id, hora FROM horario_paso WHERE dia=?",
+                        (rep,)).fetchall()
+    return [(s, v, horarios._ts(dia, h)) for s, v, h in filas]
+
+
+def _firma_dia(con, dia: str) -> str | None:
+    import hashlib
+    filas = con.execute("SELECT estacion_id, hacia_id, hora FROM horario_paso WHERE dia=? "
+                        "ORDER BY estacion_id, hacia_id, hora", (dia,)).fetchall()
+    if not filas:
+        return None
+    h = hashlib.sha1()
+    for s, v, hora in filas:
+        h.update(f"{s},{v},{hora};".encode())
+    return h.hexdigest()
+
+
+def dedupe_dia(con, dia: str, net, log=print) -> str | None:
+    """Si el horario de `dia` (completo) es idéntico al de un representante ya
+    guardado, deja solo el puntero y borra sus filas. Devuelve el representante
+    (o None si el día no está completo)."""
+    r = con.execute("SELECT rep FROM horario_paso_rep WHERE dia=?", (dia,)).fetchone()
+    if r:
+        return r[0]
+    n_desc = con.execute("SELECT count(*) FROM horario_paso_desc WHERE dia=?", (dia,)).fetchone()[0]
+    if n_desc < len(pares(net)):
+        return None                               # aún faltan pares: otro día
+    firma = _firma_dia(con, dia)
+    if firma is None:
+        return None
+    r = con.execute("SELECT rep FROM horario_paso_rep WHERE firma=? AND rep=dia LIMIT 1",
+                    (firma,)).fetchone()
+    if r and r[0] != dia:
+        con.execute("INSERT INTO horario_paso_rep(dia,rep,firma) VALUES (?,?,?)", (dia, r[0], firma))
+        cur = con.execute("DELETE FROM horario_paso WHERE dia=?", (dia,))
+        con.commit()
+        log(f"  horario de paso {dia}: igual que {r[0]}, {cur.rowcount} filas liberadas")
+        return r[0]
+    con.execute("INSERT INTO horario_paso_rep(dia,rep,firma) VALUES (?,?,?)", (dia, dia, firma))
+    con.commit()
+    return dia
+
+
+def dedupe_todo(con, net, log=print) -> dict:
+    """Migración: aplica dedupe_dia a todos los días completos (poller en marcha vale)."""
+    init_db(con)
+    dias = [r[0] for r in con.execute("SELECT DISTINCT dia FROM horario_paso ORDER BY dia")]
+    res = {"dias": len(dias), "representantes": 0, "mapeados": 0, "incompletos": 0}
+    for d in dias:
+        rep = dedupe_dia(con, d, net, log)
+        if rep is None:
+            res["incompletos"] += 1
+        elif rep == d:
+            res["representantes"] += 1
+        else:
+            res["mapeados"] += 1
+        time.sleep(0.05)
+    return res
+
+
+# ------------------------------------------------- resumen de días cerrados
+
+def _stats(v: list[int]) -> tuple[int, int, int]:
+    v = sorted(v)
+    return v[len(v) // 2], v[min(len(v) - 1, int(len(v) * 0.9))], sum(x >= TARDE for x in v)
+
+
+def guardar_resumen(con, net, dia: str) -> int:
+    """Calcula los retrasos de `dia` y guarda el resumen por línea y por parada.
+    Es lo que sobrevive a la purga de pasos_obs. Devuelve el nº de pasos casados."""
+    filas = retrasos(con, net, dia)
+    por_l: dict[int, list[int]] = {}
+    por_e: dict[tuple, list[int]] = {}
+    for f in filas:
+        por_l.setdefault(f["linea"], []).append(f["retraso_s"])
+        por_e.setdefault((f["linea"], f["estacion_id"], f["hacia_id"]), []).append(f["retraso_s"])
+    con.execute("DELETE FROM retards_dia WHERE dia=?", (dia,))
+    con.execute("DELETE FROM retards_estacio WHERE dia=?", (dia,))
+    con.executemany("INSERT INTO retards_dia(dia,linea,n,mediana_s,p90_s,tarde) VALUES (?,?,?,?,?,?)",
+                    [(dia, l, len(v), *_stats(v)) for l, v in por_l.items()])
+    con.executemany("INSERT INTO retards_estacio(dia,linea,estacion_id,hacia_id,n,mediana_s,p90_s,tarde)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    [(dia, l, s, h, len(v), *_stats(v)) for (l, s, h), v in por_e.items()])
+    con.execute("INSERT OR REPLACE INTO retards_resumits(dia,n,ts) VALUES (?,?,?)",
+                (dia, len(filas), int(time.time())))
+    con.commit()
+    return len(filas)
+
+
+def resumen_guardado(con, dia: str) -> dict | None:
+    """Resumen por línea de un día ya resumido (mismo formato que resumen_lineas),
+    o None si el día no se ha resumido (aún tiene sus pasos crudos)."""
+    try:
+        if not con.execute("SELECT 1 FROM retards_resumits WHERE dia=?", (dia,)).fetchone():
+            return None
+        return {r[0]: {"n": r[1], "mediana_s": r[2], "p90_s": r[3], "tarde": r[4]}
+                for r in con.execute("SELECT linea,n,mediana_s,p90_s,tarde FROM retards_dia "
+                                     "WHERE dia=? ORDER BY linea", (dia,))}
+    except sqlite3.OperationalError:
+        return None
 
 
 def reprocesar(con: sqlite3.Connection, desde: int, net) -> int:
@@ -277,8 +433,7 @@ def retrasos(con, net, dia: str) -> list[dict]:
 def _crudos(con, net, dia: str) -> list[dict]:
     t0, t1 = _rango_dia(dia)
     prog: dict[tuple[int, int], list[int]] = {}
-    for s, v, tp in con.execute(
-            "SELECT estacion_id, hacia_id, ts_prog FROM horario_paso WHERE dia=?", (dia,)):
+    for s, v, tp in horas_dia(con, dia):
         prog.setdefault((s, v), []).append(tp)
     sent = sentidos_inferidos(con, net, dia)
     grupos: dict[tuple[int, int], list[tuple]] = {}
@@ -319,8 +474,7 @@ def _prog_dia(con, dia: str) -> dict[tuple[int, int], list[int]]:
     """Horario de paso del día en memoria ({(estación, vecina): [ts...]})."""
     if dia not in _prog_cache:
         prog: dict[tuple[int, int], list[int]] = {}
-        for s, v, tp in con.execute(
-                "SELECT estacion_id, hacia_id, ts_prog FROM horario_paso WHERE dia=?", (dia,)):
+        for s, v, tp in horas_dia(con, dia):
             prog.setdefault((s, v), []).append(tp)
         for v in prog.values():
             v.sort()
@@ -393,8 +547,14 @@ def main():
     ap.add_argument("--horario", action="store_true", help="descarga el horario de paso")
     ap.add_argument("--reprocesar", metavar="YYYY-MM-DD",
                     help="rehace los pasos reales desde ese día (poller PARADO)")
+    ap.add_argument("--dedupe", action="store_true",
+                    help="una vez: horario de paso por tipo de día (poller en marcha vale)")
     args = ap.parse_args()
     net = load_network()
+    if args.dedupe:
+        con = sqlite3.connect(DB, timeout=120)
+        print(dedupe_todo(con, net))
+        return
     if args.reprocesar:
         con = sqlite3.connect(DB, timeout=120)
         n = reprocesar(con, _rango_dia(args.reprocesar)[0] - 3600, net)

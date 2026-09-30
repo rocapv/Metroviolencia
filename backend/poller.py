@@ -64,6 +64,13 @@ HEADERS = {
 }
 INTERVAL = 60           # cadencia SIN clientes: 1 min (registro de salidas)
 INTERVAL_ACTIVO = 60    # cadencia CON cliente activo (1 min)
+INTERVAL_NOCHE = 600    # cadencia FUERA del horario de servicio: una pasada
+                        # centinela cada 10 min (de madrugada el 74 % de las
+                        # pasadas venían vacías: 144 peticiones para nada)
+MARGEN_SERVICIO = 1200  # s: "hay servicio" si alguna hora de paso programada
+                        # cae a menos de 20 min de ahora (antes/después)
+FORZAR_SERVICIO = 1800  # s: si una pasada centinela ve trenes, cadencia normal
+                        # durante este tiempo (servicio especial o horario mal)
 CLIENTE_VENTANA = 130   # s: cliente "activo" si pidió datos hace menos de esto
 WORKERS = 12            # estaciones en paralelo. Barrido: ~62s en serie -> ~22s.
                         # El techo lo pone Metrovalencia (~7 req/s por IP): subir
@@ -79,6 +86,38 @@ def cliente_activo() -> bool:
         return (time.time() - ts) < CLIENTE_VENTANA
     except Exception:  # noqa: BLE001
         return False
+
+
+_serv_cache: dict[str, list[int]] = {}   # dia -> horas de paso programadas (ordenadas)
+ULTIMAS_LLEGADAS = 0                      # llegadas de la última pasada (lo lee el bucle)
+
+
+def en_servicio(con: sqlite3.Connection, ts: int) -> bool:
+    """¿Hay servicio programado alrededor de `ts`? Mira el horario de paso de
+    los días que toca la ventana [ts-MARGEN, ts+MARGEN] (las horas de después
+    de medianoche van con el día natural en que caen). Sin horario descargado
+    para esos días -> True: sin información no se deja de sondear."""
+    import bisect
+    dias = {dt.date.fromtimestamp(t).isoformat()
+            for t in (ts - MARGEN_SERVICIO, ts, ts + MARGEN_SERVICIO)}
+    alguno = False
+    for dia in sorted(dias):
+        if dia not in _serv_cache:
+            try:
+                horas = sorted(t for _s, _v, t in pasos.horas_dia(con, dia))
+            except sqlite3.OperationalError:
+                horas = []
+            if not horas:
+                return True                       # ese día aún sin horario
+            for k in [k for k in _serv_cache if k < min(dias)]:
+                del _serv_cache[k]                # días pasados fuera de la caché
+            _serv_cache[dia] = horas
+        alguno = True
+        horas = _serv_cache[dia]
+        i = bisect.bisect_left(horas, ts - MARGEN_SERVICIO)
+        if i < len(horas) and horas[i] <= ts + MARGEN_SERVICIO:
+            return True
+    return not alguno
 
 
 SCHEMA = """
@@ -245,6 +284,8 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
     # persistente (track_id), siguiéndolos desde el snapshot anterior.
     n_tr = track_snapshot(con, net, snap_id, ts, rows)
 
+    global ULTIMAS_LLEGADAS
+    ULTIMAS_LLEGADAS = len(rows)
     faltan = ", ".join(f"L{l}" for _s, _t, l in ni) or "-"
     print(f"[{time.strftime('%H:%M:%S')}] snapshot {snap_id}: "
           f"{ok}/{len(net.estaciones)} estaciones, {len(rows)} llegadas, "
@@ -352,18 +393,36 @@ def main():
     idle = args.interval            # cadencia sin clientes (por defecto 60)
     last_pull = 0.0
     last_horario = 0.0
+    forzado_hasta = 0.0             # una centinela vio trenes: servicio hasta aquí
+    modo = "servicio"
     while True:
         if time.time() - last_horario > 3600:   # cada hora: ¿falta horario?
             last_horario = time.time()
             lanzar_horarios()
-        objetivo = INTERVAL_ACTIVO if cliente_activo() else idle
-        transcurrido = time.time() - last_pull
+        ahora = time.time()
+        if cliente_activo():
+            objetivo = INTERVAL_ACTIVO
+        elif ahora < forzado_hasta or en_servicio(con, int(ahora)):
+            objetivo = idle
+        else:
+            objetivo = INTERVAL_NOCHE            # fuera de horario: centinela
+        nuevo = "noche" if objetivo == INTERVAL_NOCHE else "servicio"
+        if nuevo != modo:
+            modo = nuevo
+            print(f"[{time.strftime('%H:%M:%S')}] modo {modo}: pasada cada {objetivo} s")
+        transcurrido = ahora - last_pull
         if transcurrido >= objetivo:
             # (A) el intervalo se cuenta desde el INICIO de la pasada, no del
             # final: así el ciclo es max(objetivo, duración) y no objetivo+duración.
-            last_pull = time.time()
+            last_pull = ahora
             try:
                 poll_once(con, session)
+                if modo == "noche" and ULTIMAS_LLEGADAS:
+                    # hay trenes fuera del horario (servicio especial, horario
+                    # incompleto...): vuelve a la cadencia normal un rato
+                    forzado_hasta = time.time() + FORZAR_SERVICIO
+                    print(f"  centinela: {ULTIMAS_LLEGADAS} llegadas fuera de horario, "
+                          f"cadencia normal {FORZAR_SERVICIO // 60} min")
             except Exception as e:  # noqa: BLE001 - el bucle no debe morir
                 print("error en pasada:", e)
         else:
