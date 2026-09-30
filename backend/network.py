@@ -329,6 +329,13 @@ class Network:
         except Exception:  # noqa: BLE001
             return {}
 
+    def tram_tracks_extra(self) -> dict[str, list]:
+        p = TRAM_TRACKS_JSON.with_name("tram_tracks_extra.json")
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return {}
+
     def conectores(self) -> list[dict]:
         """Enlaces de vía que faltan en las polylines: entre estaciones vecinas
         de una misma línea comercial cuyo punto medio queda lejos de toda vía.
@@ -434,6 +441,9 @@ class Network:
             "estaciones_retorno": self.estaciones_retorno(),
             "conectores": self.conectores(),
             "tram_tracks": self.tram_tracks(),
+            # tramos que solo recorre el sentido contrario (p. ej. calle Doctor
+            # Lluch en la playa): solo se dibujan, no posicionan trenes
+            "tram_tracks_extra": self.tram_tracks_extra(),
             # segmentos de vía crudos a dibujar = solo los de METRO (los del
             # tranvía se dibujan desde OSM; dibujar ambos duplicaba carriles)
             "metro_segs": sorted({

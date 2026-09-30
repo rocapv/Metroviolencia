@@ -200,6 +200,12 @@ async function cargarRed() {
     for (const w of ways) addLayer(Number(ref),
       L.polyline(w, { color: col, weight: 3.5, opacity: 0.9, lineJoin: "round" }));
   }
+  // trams que només fa el sentit contrari (carrer Doctor Lluch a la platja…)
+  for (const [ref, ways] of Object.entries(net.tram_tracks_extra || {})) {
+    const col = hex("#" + (colores[ref] || "888"));
+    for (const w of ways) addLayer(Number(ref),
+      L.polyline(w, { color: col, weight: 3.5, opacity: 0.9, lineJoin: "round" }));
+  }
   // connectors de metro
   for (const c of net.conectores || []) {
     addLayer(c.linea, L.polyline(c.path, { color: hex("#" + c.color), weight: 3.5,
