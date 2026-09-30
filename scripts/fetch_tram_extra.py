@@ -30,8 +30,9 @@ CONTRARIAS = [
     5620871, 5621789, 5621890,   # L4 Dr. Lluch -> (Mas del Rosari / Fira / Ll. Llarga)
     5622028,                     # L6 Marítim -> Tossal del Rei
     5622078,                     # L8 Marítim -> Neptú
-    14166107,                    # L10 Natzaret -> Alacant
 ]
+# L10 no: su trazado ya estaba bien (lo confirmó el usuario el 30/09); el otro
+# sentido solo añadía un retal de 170 m junto a Alacant.
 LEJOS = 50.0      # m: más lejos que esto de toda vía dibujada = calle distinta
 MIN_TRAMO = 80.0  # m: descarta retales
 EMPALME = 100.0   # m: distancia máxima para unir un extremo a la vía existente

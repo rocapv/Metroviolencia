@@ -435,13 +435,15 @@ function pintarTrenes(trenes) {
     }
     if (best && bestD < 1500) {   // mateix tren físic: reaprofita el marcador
       best.usado = true; best.tren = t;
+      const k = classeRetard(t);
+      if (best.kRet !== k) { best.marker.setIcon(iconoTren(t)); best.kRet = k; }
       // NO reposicionem ací: animar() suavitza la posició (e.dViz) cada frame,
       // així no es produeix cap salt al refrescar (ni cap avant ni cap arrere).
       best.marker.setPopupContent(popupTren(t));
     } else {
       const marker = L.marker(ll, { icon: iconoTren(t) }).bindPopup(popupTren(t));
       marker.addTo(trenLayer);
-      nuevos.push({ marker, tren: t, usado: true });
+      nuevos.push({ marker, tren: t, usado: true, kRet: classeRetard(t) });
     }
   }
   // esborrar marcadors no reaprofitats i reconstruir el mapa
@@ -452,8 +454,21 @@ function pintarTrenes(trenes) {
   for (const e of nuevos) marcadores.set("m" + n++, e);
 }
 
+// vora de la fletxa segons el retard: el farcit continua sent el color de la
+// línia; la vora només canvia si el tren NO va a l'hora (mapa tranquil)
+const VORA_RETARD = { "": "#fff", poc: "#f59e0b", tard: "#ef4444", avanc: "#38bdf8" };
+function classeRetard(t) {
+  const d = t.retraso ? t.retraso.retraso_s : null;
+  if (d == null) return "";
+  if (d >= 180) return "tard";
+  if (d >= 90) return "poc";
+  if (d <= -90) return "avanc";
+  return "";
+}
+
 function iconoTren(t) {
   const c = "#" + (t.color || "888");
+  const k = classeRetard(t);
   // punt (parat en capçalera/retorn) + fletxa (en marxa, girada al rumb).
   // Tots dos amb vora blanca per a ressaltar sobre la via.
   return L.divIcon({
@@ -462,8 +477,8 @@ function iconoTren(t) {
       `<div class="tren-wrap">` +
       `<span class="tren-dot" style="background:${c}"></span>` +
       `<svg class="tren-arrow" viewBox="0 0 24 24" width="22" height="22">` +
-      `<path d="M21 12 L6 4 L11 12 L6 20 Z" fill="${c}" stroke="#fff" ` +
-      `stroke-width="1.7" stroke-linejoin="round"/></svg>` +
+      `<path d="M21 12 L6 4 L11 12 L6 20 Z" fill="${c}" stroke="${VORA_RETARD[k]}" ` +
+      `stroke-width="${k ? 2.6 : 1.7}" stroke-linejoin="round"/></svg>` +
       `</div>`,
     iconSize: [22, 22], iconAnchor: [11, 11],
   });

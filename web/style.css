@@ -294,3 +294,4 @@ html, body {
   background: rgba(255,255,255,.05); border-radius: 7px; padding: 4px 7px; }
 .ret-lin small { color: var(--muted); width: 100%; font-size: 11px; }
 .ret-lin small b { color: #f59e0b; }
+.llegenda-retard { margin-top: 8px; font-size: 11px; color: var(--muted); }
