@@ -500,7 +500,20 @@ function popupTren(t) {
   const idTxt = t.id != null ? ` <span style="color:#6a6a7a">#${t.id}</span>` : "";
   return `<span class="pop-linea" style="background:${c}">${NOMBRES_LINEA[t.linea] || "L" + t.linea}</span>
     → <b>${t.destino}</b>${idTxt}${espera}<br>
-    <span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>`;
+    <span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>` +
+    retardTren(t);
+}
+
+// retard ara mateix respecte a l'horari de pas (calculat al servidor)
+function retardTren(t) {
+  const r = t.retraso;
+  if (!r) return "";
+  const d = r.retraso_s, min = Math.round(Math.abs(d) / 60);
+  const [col, txt] = Math.abs(d) < 90 ? ["#4ade80", "va a l'hora"]
+    : d > 0 ? [d >= 180 ? "#f87171" : "#fbbf24", `va <b>+${min} min</b> tard`]
+    : ["#38bdf8", `va <b>${min} min</b> avançat`];
+  return `<br><span style="color:${col}">${txt}</span>
+    <span style="color:#9a9aac">· programat a ${r.estacion} a les ${r.hora_prog}</span>`;
 }
 
 /* ---------- posar en fila els trens que comparteixen via ---------- */

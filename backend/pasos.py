@@ -28,6 +28,7 @@ from .salidas import _rango_dia, seguir
 
 VENTANA = 900          # s: un paso casa con una hora programada a <15 min
 MARGEN_AMBIG = 90      # s: si otra hora programada está casi igual de cerca -> ambiguo
+INCOHERENTE = 150     # s: desvío máximo del retraso mediano frente a paradas contiguas
 TARDE = 180            # s: a partir de aquí el paso "va tarde"
 
 SCHEMA = """
@@ -142,34 +143,128 @@ def reprocesar(con: sqlite3.Connection, desde: int, net) -> int:
 
 # ------------------------------------------------------------------ cruce
 
-def _vecina(net, linea: int, sid: int, destino: str) -> int | None:
-    """Estación siguiente a `sid` en la línea, en el sentido del destino."""
+def _vecina(net, linea: int, sid: int, destino: str,
+            sentido: int | None = None) -> int | None:
+    """Estación siguiente a `sid` en la línea, en el sentido del destino. Si el
+    destino no está en el trazado de la línea (p. ej. L1 rotulada "Benimaclet"
+    que en realidad va hacia Moncada), usa `sentido` (+1 = orden creciente)."""
     lc = net.comerciales.get(linea)
-    dest = net.id_por_nombre(destino)
-    if not lc or dest is None:
+    if not lc:
         return None
     orden = [s for _d, s in lc.orden]
-    if sid not in orden or dest not in orden:
+    if sid not in orden:
         return None
-    i, j = orden.index(sid), orden.index(dest)
-    if i == j:
+    i = orden.index(sid)
+    dest = net.id_por_nombre(destino)
+    if dest in orden:
+        j = orden.index(dest)
+        if i == j:
+            return None
+        sentido = 1 if j > i else -1
+    if sentido not in (1, -1):
         return None
-    return orden[i + 1] if j > i else orden[i - 1]
+    k = i + sentido
+    return orden[k] if 0 <= k < len(orden) else None
+
+
+_sent_cache: dict[str, dict] = {}
+
+
+def sentidos_inferidos(con, net, dia: str) -> dict[tuple[int, str], int]:
+    """Sentido de los (línea, destino) cuyo destino no está en el trazado de la
+    línea, deducido de los pasos reales: pasos del mismo (línea, destino) por
+    estaciones VECINAS con 1-6 min de diferencia votan +1/-1."""
+    if dia in _sent_cache:
+        return _sent_cache[dia]
+    t0, t1 = _rango_dia(dia)
+    idx = {l: {s: i for i, (_d, s) in enumerate(lc.orden)} for l, lc in net.comerciales.items()}
+    fuera = set()
+    por: dict[tuple[int, str], list[tuple[int, int]]] = {}
+    for sid, linea, destino, tp in con.execute(
+            "SELECT origen_id, linea, destino, ts_salida FROM pasos_obs "
+            "WHERE estado='salida' AND ts_salida>=? AND ts_salida<?", (t0 - 86400, t1)):
+        d = net.id_por_nombre(destino)
+        if linea in idx and d not in idx[linea] and sid in idx[linea]:
+            fuera.add((linea, destino))
+            por.setdefault((linea, destino), []).append((tp, idx[linea][sid]))
+    res = {}
+    for k, lst in por.items():
+        lst.sort()
+        votos = 0
+        for (ta, ia), (tb, ib) in zip(lst, lst[1:]):
+            if abs(ib - ia) == 1 and 60 <= tb - ta <= 360:
+                votos += 1 if ib > ia else -1
+        if abs(votos) >= 5:
+            res[k] = 1 if votos > 0 else -1
+    _sent_cache.clear()
+    _sent_cache[dia] = res
+    return res
+
+
+def pares_incoherentes(filas: list[dict], minimo: int = 8,
+                       extremos: set[int] = frozenset()) -> set[tuple[int, int]]:
+    """(estación, vecina) cuyo retraso mediano del día se aparta más de
+    INCOHERENTE s del de sus estaciones contiguas en el MISMO sentido. Un tren
+    no gana ni pierde varios minutos de una parada a la siguiente: si pasa, lo
+    que falla es el horario de esa parada (p. ej. Canyamelar en el bucle de L6,
+    donde el planificador da a los dos sentidos las horas de uno solo)."""
+    import statistics as st
+    por: dict[tuple[int, int], list[int]] = {}
+    for f in filas:
+        por.setdefault((f["estacion_id"], f["hacia_id"]), []).append(f["retraso_s"])
+    med = {k: st.median(v) for k, v in por.items() if len(v) >= minimo}
+    malos = set()
+    for (s, v), m in med.items():
+        if s in extremos:
+            continue       # donde empiezan/acaban trenes el retraso "salta" de verdad
+        vecinos = [mm for (a, b), mm in med.items()
+                   if (b == s and a != v) or (a == v and b != s)]
+        if vecinos and abs(m - st.median(vecinos)) > INCOHERENTE:
+            malos.add((s, v))
+    return malos
+
+
+def _extremos(net, filas: list[dict]) -> set[int]:
+    """Estaciones donde empiezan o acaban trenes: destinos vistos y retornos."""
+    noms = {f["destino"] for f in filas} | set(net.estaciones_retorno())
+    return {i for i in (net.id_por_nombre(n) for n in noms) if i is not None}
+
+
+_incoh_cache: dict[str, set] = {}
+
+
+def incoherentes(con, net, dia: str) -> set[tuple[int, int]]:
+    """Pares incoherentes según el día ANTERIOR (cerrado), para el cálculo en
+    vivo. Se calcula una vez al día."""
+    if dia not in _incoh_cache:
+        ayer = (dt.date.fromisoformat(dia) - dt.timedelta(days=1)).isoformat()
+        _incoh_cache.clear()
+        filas = _crudos(con, net, ayer)
+        _incoh_cache[dia] = pares_incoherentes(filas, extremos=_extremos(net, filas))
+    return _incoh_cache[dia]
 
 
 def retrasos(con, net, dia: str) -> list[dict]:
     """Pasos reales del día casados con su hora programada: una fila por paso
-    con retraso_s (+ tarde, − adelantado). Los ambiguos no se devuelven."""
+    con retraso_s (+ tarde, − adelantado). Los ambiguos y los de paradas con
+    horario incoherente no se devuelven."""
+    filas = _crudos(con, net, dia)
+    malos = pares_incoherentes(filas, extremos=_extremos(net, filas))
+    return [f for f in filas if (f["estacion_id"], f["hacia_id"]) not in malos]
+
+
+def _crudos(con, net, dia: str) -> list[dict]:
     t0, t1 = _rango_dia(dia)
     prog: dict[tuple[int, int], list[int]] = {}
     for s, v, tp in con.execute(
             "SELECT estacion_id, hacia_id, ts_prog FROM horario_paso WHERE dia=?", (dia,)):
         prog.setdefault((s, v), []).append(tp)
+    sent = sentidos_inferidos(con, net, dia)
     grupos: dict[tuple[int, int], list[tuple]] = {}
     for sid, linea, destino, tpaso in con.execute(
             "SELECT origen_id, linea, destino, ts_salida FROM pasos_obs "
             "WHERE estado='salida' AND ts_salida>=? AND ts_salida<?", (t0, t1)):
-        v = _vecina(net, linea, sid, destino)
+        v = _vecina(net, linea, sid, destino, sent.get((linea, destino)))
         if v is not None and (sid, v) in prog:
             grupos.setdefault((sid, v), []).append((tpaso, linea, destino))
     out = []
@@ -188,11 +283,71 @@ def retrasos(con, net, dia: str) -> list[dict]:
             otra = min((abs(tpaso - p) for k, p in enumerate(slots) if k != j), default=1e9)
             if otra < abs(d) + MARGEN_AMBIG:
                 continue
-            out.append({"estacion_id": sid, "estacion": net.estaciones[sid].nombre,
+            out.append({"estacion_id": sid, "hacia_id": v,
+                        "estacion": net.estaciones[sid].nombre,
                         "linea": linea, "destino": destino, "ts_paso": tpaso,
                         "ts_prog": slots[j], "retraso_s": d})
     out.sort(key=lambda f: f["ts_paso"])
     return out
+
+
+_prog_cache: dict[str, dict] = {}
+
+
+def _prog_dia(con, dia: str) -> dict[tuple[int, int], list[int]]:
+    """Horario de paso del día en memoria ({(estación, vecina): [ts...]})."""
+    if dia not in _prog_cache:
+        prog: dict[tuple[int, int], list[int]] = {}
+        for s, v, tp in con.execute(
+                "SELECT estacion_id, hacia_id, ts_prog FROM horario_paso WHERE dia=?", (dia,)):
+            prog.setdefault((s, v), []).append(tp)
+        for v in prog.values():
+            v.sort()
+        if prog:                      # no cachear un día aún sin descargar
+            _prog_cache.clear()
+            _prog_cache[dia] = prog
+        return prog
+    return _prog_cache[dia]
+
+
+def retraso_vivo(con, net, tren: dict, ts: int, max_paradas: int = 4) -> dict | None:
+    """Retraso AHORA de un tren en vivo: su llegada prevista a las próximas
+    paradas (ts + eta de los waypoints) frente a la hora programada de paso en
+    esa parada y sentido. Usa la primera parada donde el casamiento no es
+    ambiguo. None si no hay horario o todo es ambiguo."""
+    prog = _prog_dia(con, dt.date.fromtimestamp(ts).isoformat())
+    if not prog:
+        return None
+    dudosos = incoherentes(con, net, dt.date.fromtimestamp(ts).isoformat())
+    wps = tren.get("waypoints") or []
+    # sentido del tren = su avance sobre la vía (d creciente = orden creciente)
+    sentido = None
+    if len(wps) >= 2 and abs(wps[-1]["d"] - wps[0]["d"]) > 1:
+        sentido = 1 if wps[-1]["d"] > wps[0]["d"] else -1
+    probadas = 0
+    for wp in wps:
+        nom = wp.get("nom")
+        if not nom or wp.get("eta") is None or wp["eta"] >= 3600:
+            continue
+        probadas += 1
+        if probadas > max_paradas:
+            break
+        sid = net.id_por_nombre(nom)
+        v = (_vecina(net, tren["linea"], sid, tren["destino"], sentido)
+             if sid is not None else None)
+        slots = prog.get((sid, v)) if v is not None and (sid, v) not in dudosos else None
+        if not slots:
+            continue
+        real = ts + wp["eta"]
+        cands = sorted(slots, key=lambda p: abs(real - p))
+        d = real - cands[0]
+        if abs(d) > VENTANA:
+            continue
+        if len(cands) > 1 and abs(real - cands[1]) < abs(d) + MARGEN_AMBIG:
+            continue                  # tronco compartido: no se sabe cuál es
+        return {"retraso_s": d, "estacion": nom,
+                "hora_prog": dt.datetime.fromtimestamp(cands[0]).strftime("%H:%M")}
+    return None
 
 
 def resumen_lineas(filas: list[dict], desde: int | None = None) -> dict:

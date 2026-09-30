@@ -177,6 +177,12 @@ def trains():
             "prox_estacion": r["prox_estacion"], "eta_seg": r["eta_seg"],
             "origen": bool(r["origen"]), "waypoints": json.loads(r["waypoints"]),
         } for r in trs]
+        # retraso en vivo frente al horario de paso (se ve al tocar el tren)
+        for t in trenes:
+            try:
+                t["retraso"] = None if t["origen"] else pasos.retraso_vivo(con, _net(), t, ts)
+            except sqlite3.OperationalError:
+                t["retraso"] = None
         return {"ts": ts, "edad_seg": int(time.time()) - ts,
                 "srv_ms": int(time.time() * 1000),
                 "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap_id)}
