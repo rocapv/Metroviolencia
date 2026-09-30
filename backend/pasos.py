@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import sqlite3
+import threading
 import time
 
 from . import horarios
@@ -231,17 +232,37 @@ def _extremos(net, filas: list[dict]) -> set[int]:
 
 
 _incoh_cache: dict[str, set] = {}
+_incoh_pend: set[str] = set()
+_incoh_lock = threading.Lock()
 
 
 def incoherentes(con, net, dia: str) -> set[tuple[int, int]]:
     """Pares incoherentes según el día ANTERIOR (cerrado), para el cálculo en
-    vivo. Se calcula una vez al día."""
-    if dia not in _incoh_cache:
+    vivo. Tarda ~20 s en la Raspa, así que se calcula en un hilo aparte una vez
+    al día; mientras tanto devuelve un conjunto vacío (no bloquea /api/trains)."""
+    if dia in _incoh_cache:
+        return _incoh_cache[dia]
+    with _incoh_lock:
+        if dia not in _incoh_pend:
+            _incoh_pend.add(dia)
+            threading.Thread(target=_calcula_incoherentes, args=(net, dia),
+                             daemon=True).start()
+    return set()
+
+
+def _calcula_incoherentes(net, dia: str) -> None:
+    from .poller import DB
+    try:
+        c = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=60)
         ayer = (dt.date.fromisoformat(dia) - dt.timedelta(days=1)).isoformat()
+        filas = _crudos(c, net, ayer)
+        res = pares_incoherentes(filas, extremos=_extremos(net, filas))
+        c.close()
         _incoh_cache.clear()
-        filas = _crudos(con, net, ayer)
-        _incoh_cache[dia] = pares_incoherentes(filas, extremos=_extremos(net, filas))
-    return _incoh_cache[dia]
+        _incoh_cache[dia] = res
+    finally:
+        with _incoh_lock:
+            _incoh_pend.discard(dia)
 
 
 def retrasos(con, net, dia: str) -> list[dict]:

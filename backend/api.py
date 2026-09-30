@@ -203,6 +203,16 @@ def trains():
             "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap["id"])}
 
 
+@app.on_event("startup")
+def _precalienta():
+    """Arranca en segundo plano el cálculo diario de paradas incoherentes."""
+    import datetime as dt
+    try:
+        pasos.incoherentes(None, _net(), dt.date.today().isoformat())
+    except Exception:  # noqa: BLE001
+        pass
+
+
 _net_cache = None
 _sesion = None
 
