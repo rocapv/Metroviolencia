@@ -195,17 +195,28 @@ aplicación, no Apache (hoy sin token, ver «Acceso» arriba).
 
 ### Ruta heredada: se mantiene hasta el 05/10/2027
 
-`http://home.pr1.es:5580/metroviolencia/` (y `https://home.pr1.es:8751/metroviolencia/`)
-siguen atendidas durante un año a partir del 05/10/2026, porque la APK personal
-lleva esas direcciones embebidas y reconstruirla necesita el token (solo está
-en Raspa, `data/token.txt`). Para que la APK use el subdominio, reconstruirla con
-`BASE_EXT_HTTPS=https://metroviolencia.pr1.es/ apk/build_apk.sh` (el certificado
-de Let's Encrypt es de confianza: no hace falta empaquetar ninguno).
+`http://home.pr1.es:5580/metroviolencia/` sigue atendida durante un año a partir
+del 05/10/2026, porque la APK personal lleva esa dirección embebida. Estado real
+medido desde fuera de la LAN el 05/10/2026:
 
-Pasada esa fecha: retirar `deploy/apache-metroviolencia.conf` de Raspa (el
-`Listen 8751` y el proxy `/metroviolencia/`), cerrar el reenvío del 8751 en el
-router y comprobar que ningún cliente sigue pidiendo la ruta antigua en
-`/var/log/apache2/home-jf-5580-access.log` y `other_vhosts_access.log`.
+- **`:5580` funciona, pero por redirección**: el router manda el 5580 al :80 de
+  Raspa, y desde que `home.pr1.es` es el KDS (22/09/2026) su vhost :80 redirige
+  todo a `https://home.pr1.es/metroviolencia/`, que sí sirve el mapa (proxy
+  global de `apache-metroviolencia.conf`, abierto en el 443). Un cliente que no
+  siga redirecciones (o que no admita HTTPS) no llega.
+- **`https://home.pr1.es:8751/` NO llega desde fuera** (el router no lo
+  reenvía); solo valdría en la LAN.
+
+Reconstruir la APK necesita el token (solo está en Raspa, `data/token.txt`).
+Para que use el subdominio: `BASE_EXT_HTTPS=https://metroviolencia.pr1.es/
+apk/build_apk.sh` (el certificado de Let's Encrypt es de confianza: no hace
+falta empaquetar ninguno). Está pendiente.
+
+Pasada esa fecha: decidir si se retira el proxy `/metroviolencia/` de
+`deploy/apache-metroviolencia.conf` (ojo: también es la ruta de la LAN,
+`http://192.168.1.100/metroviolencia/`) y el `Listen 8751`, comprobando antes
+que nadie la sigue pidiendo en `/var/log/apache2/home.pr1.es-access.log`,
+`home.pr1.es-ssl-access.log` y `other_vhosts_access.log`.
 
 Una vez, con ambos servicios parados: `python -m backend.purga --vacuum`
 activa `auto_vacuum=INCREMENTAL` y compacta la base (el temporal del VACUUM
