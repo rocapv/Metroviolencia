@@ -113,8 +113,12 @@ en ruta y calculadora de rutas con los trenes en vivo que hay que coger.
 Acceso: dentro de la red local (RFC 1918 / loopback) no hace falta token.
 Desde fuera el middleware exige un token (`data/token.txt` o `METRO_TOKEN`)
 que se pasa una vez como `?token=` y queda en cookie; sin él responde 403.
-`data/open_until.txt` abre una ventana temporal sin token. Todas las
-respuestas van con `Cache-Control: no-store`.
+`data/open_until.txt` abre una ventana temporal sin token (un instante Unix; o
+la palabra `siempre`, que no caduca). **Desde el 05/10/2026 Raspa lo tiene en
+`siempre`: el token está levantado y la web es pública**; para volver a exigirlo
+basta borrar ese fichero (el token de `data/token.txt` sigue vigente y la APK
+personal lo sigue mandando, sin efecto). Todas las respuestas van con
+`Cache-Control: no-store`.
 
 ## Uso local
 
@@ -154,12 +158,54 @@ su control de acceso. El único `xfail` documenta que en datos reales hasta un
 - `metroviolencia-poller.service`: `python -m backend.poller --interval 60`.
 - `metroviolencia-web.service`: uvicorn en `127.0.0.1:8770` con
   `--root-path /metroviolencia`; nunca expuesto directamente.
-- `apache-metroviolencia.conf`: proxy inverso `/metroviolencia/` -> `:8770`.
-  En los puertos normales solo admite la LAN; en los puertos reenviados desde
-  el router queda abierto y es el token de la API quien cierra el paso.
+- `apache-metroviolencia.conf`: proxy inverso `/metroviolencia/` -> `:8770`
+  (ruta heredada, ver más abajo). En 80, 443, 5580 y 8751 queda abierto y es el
+  token de la API quien cierra el paso desde fuera de la LAN.
+- `metroviolencia.pr1.es.conf` / `metroviolencia.pr1.es-ssl.conf`: el vhost del
+  subdominio propio (ver más abajo).
 
 Acceso en la LAN: `http://192.168.1.100/metroviolencia/`. Fuera de la LAN,
 con token.
+
+### Subdominio propio: `https://metroviolencia.pr1.es/`
+
+Desde el 05/10/2026 la aplicación cuelga también de la **raíz** de su propio
+nombre. Es la dirección que hay que dar a quien la use; la ruta
+`/metroviolencia/` queda como herencia (ver más abajo). El acceso lo decide la
+aplicación, no Apache (hoy sin token, ver «Acceso» arriba).
+
+- **DNS**: registro A `metroviolencia` en la zona `pr1.es` (TTL 60) que mantiene
+  el DDNS de Raspa (`~/ddns_ovh/ddns_ovh.py`, lista `REGISTROS`): si la IP
+  pública cambia, se reescribe solo. El DDNS **no crea** registros; si se borra,
+  se da de alta a mano con la API de OVH (`POST /domain/zone/pr1.es/record`,
+  `fieldType=A`, `subDomain=metroviolencia`, `ttl=60`, y `POST .../refresh`).
+- **Apache** (`sites-available/` + `a2ensite`): `metroviolencia.pr1.es.conf`
+  (:80, sirve el reto ACME y redirige a HTTPS) y `metroviolencia.pr1.es-ssl.conf`
+  (:443, proxy de `/` a `127.0.0.1:8770`). El `/api/` hay que ganarlo con un
+  `<Location /api/>` propio dentro del vhost: `director-ocr.conf` declara uno
+  global que, si no, se lleva el `/api` de todos los sitios a la API OCR del
+  Director.
+- **Certificado**: Let's Encrypt (ECDSA, webroot `/var/www/metroviolencia.pr1.es`,
+  renovación por `certbot.timer`). Con el vhost :80 ya activo:
+  `sudo certbot certonly --webroot -w /var/www/metroviolencia.pr1.es -d metroviolencia.pr1.es --key-type ecdsa`
+- **Cookie del token** (solo si se vuelve a exigir token): aquí la app cuelga de la raíz, no de `/metroviolencia`,
+  así que el vhost manda `X-Forwarded-Prefix: /` y `X-Forwarded-Proto: https` y
+  `backend/api.py` fija la cookie con `Path=/` y `Secure` (en la ruta heredada
+  sigue con `Path=/metroviolencia`). Hay prueba en `tests/test_api.py`.
+
+### Ruta heredada: se mantiene hasta el 05/10/2027
+
+`http://home.pr1.es:5580/metroviolencia/` (y `https://home.pr1.es:8751/metroviolencia/`)
+siguen atendidas durante un año a partir del 05/10/2026, porque la APK personal
+lleva esas direcciones embebidas y reconstruirla necesita el token (solo está
+en Raspa, `data/token.txt`). Para que la APK use el subdominio, reconstruirla con
+`BASE_EXT_HTTPS=https://metroviolencia.pr1.es/ apk/build_apk.sh` (el certificado
+de Let's Encrypt es de confianza: no hace falta empaquetar ninguno).
+
+Pasada esa fecha: retirar `deploy/apache-metroviolencia.conf` de Raspa (el
+`Listen 8751` y el proxy `/metroviolencia/`), cerrar el reenvío del 8751 en el
+router y comprobar que ningún cliente sigue pidiendo la ruta antigua en
+`/var/log/apache2/home-jf-5580-access.log` y `other_vhosts_access.log`.
 
 Una vez, con ambos servicios parados: `python -m backend.purga --vacuum`
 activa `auto_vacuum=INCREMENTAL` y compacta la base (el temporal del VACUUM

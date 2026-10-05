@@ -90,6 +90,35 @@ def test_token_desde_fuera(cliente, monkeypatch, tmp_path):
     assert cliente.get("/api/health", headers=LAN).status_code == 200
 
 
+def test_cookie_del_token_segun_donde_cuelga_la_app(cliente, monkeypatch, tmp_path):
+    tok = tmp_path / "token.txt"
+    tok.write_text("secreto-de-prueba\n", encoding="utf-8")
+    monkeypatch.setattr(api, "TOKEN_FILE", tok)
+    from http.cookies import SimpleCookie
+
+    def cookie(headers):
+        c = SimpleCookie()
+        c.load(cliente.get("/api/health?token=secreto-de-prueba", headers=headers).headers["set-cookie"])
+        return c["mvtoken"]
+
+    # ruta heredada (/metroviolencia/ en home.pr1.es:5580): cookie acotada a ese prefijo
+    heredada = cookie(FUERA)
+    assert heredada["path"] == "/metroviolencia" and not heredada["secure"]
+    # vhost dedicado metroviolencia.pr1.es: cuelga de la raíz y va por HTTPS
+    dedicado = cookie({**FUERA, "X-Forwarded-Prefix": "/", "X-Forwarded-Proto": "https"})
+    assert dedicado["path"] == "/" and dedicado["secure"]
+
+
+def test_acceso_abierto_siempre_sin_token(cliente, monkeypatch, tmp_path):
+    abierto = tmp_path / "open_until.txt"
+    monkeypatch.setattr(api, "OPEN_FILE", abierto)
+    assert cliente.get("/api/health", headers=FUERA).status_code == 403   # sin fichero: cerrado
+    abierto.write_text("siempre\n", encoding="utf-8")
+    assert cliente.get("/api/health", headers=FUERA).status_code == 200
+    abierto.write_text("basura", encoding="utf-8")                        # ilegible: cerrado
+    assert cliente.get("/api/health", headers=FUERA).status_code == 403
+
+
 def test_ventana_abierta_sin_token(cliente, monkeypatch, tmp_path):
     import time
     abierto = tmp_path / "open_until.txt"

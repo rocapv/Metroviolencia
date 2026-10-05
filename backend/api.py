@@ -66,10 +66,12 @@ def _is_lan(ip: str) -> bool:
 
 
 def _open_now() -> bool:
-    """Ventana temporal en la que NO se exige token (ni siquiera desde fuera).
-    Caduca sola cuando pasa el instante guardado en data/open_until.txt."""
+    """Ventana en la que NO se exige token (ni siquiera desde fuera).
+    Caduca sola cuando pasa el instante guardado en data/open_until.txt; si el
+    fichero dice `siempre`, no caduca (se levanta borrando el fichero)."""
     try:
-        return time.time() < float(OPEN_FILE.read_text(encoding="utf-8").strip())
+        valor = OPEN_FILE.read_text(encoding="utf-8").strip()
+        return valor.lower() == "siempre" or time.time() < float(valor)
     except Exception:  # noqa: BLE001
         return False
 
@@ -99,8 +101,13 @@ async def auth_token(request: Request, call_next):
             return JSONResponse({"error": "forbidden"}, status_code=403)
         resp = await call_next(request)
         if q == token:   # primer acceso externo con token en la URL: fija cookie
+            # En la ruta heredada (home.pr1.es:5580/metroviolencia/) la app cuelga de
+            # /metroviolencia; en metroviolencia.pr1.es cuelga de la raíz y su vhost de
+            # Apache manda X-Forwarded-Prefix: "/" (y X-Forwarded-Proto: https -> Secure).
+            raiz = request.headers.get("x-forwarded-prefix") == "/"
             resp.set_cookie("mvtoken", token, max_age=31536000,
-                            path="/metroviolencia", httponly=True, samesite="lax")
+                            path="/" if raiz else "/metroviolencia", httponly=True, samesite="lax",
+                            secure=request.headers.get("x-forwarded-proto") == "https")
     # nunca cachear: ni los datos en vivo ni el frontend (evita snapshots viejos
     # y que el WebView sirva un app.js antiguo). Robusto ante root_path del proxy.
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
