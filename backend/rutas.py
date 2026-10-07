@@ -192,7 +192,10 @@ def trenes_paso(net, trenes: list[dict], linea: int, s: int, t: int,
         # Si hay lista de destinos válidos del planificador, validar contra ella
         # Aplicar SIEMPRE el filtro si se proporciona, no solo si tiene contenido
         if destinos_validos is not None:
+            # Debug: log qué se está filtrando
             if tr["destino"] not in destinos_validos:
+                import sys
+                print(f"DEBUG: Filtrando tren L{linea} {tr['destino']!r} no en {destinos_validos!r}", file=sys.stderr)
                 continue
         dest_id = net.id_por_nombre(tr["destino"])
         d_dest = lc.station_dist(dest_id) if dest_id is not None else None
