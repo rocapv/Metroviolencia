@@ -236,7 +236,11 @@ def test_estimar_reproduce_los_trenes_guardados_en_raspa(net, extracto, snap):
     assert len(est) == len(guardados) > 50
     clave = lambda linea, destino, d: (linea, destino, round(d, 1))  # noqa: E731
     a = sorted(clave(t.linea, t.destino, t.waypoints[0]["d"]) for t in est)
-    b = sorted(clave(t["linea"], t["destino"], t["d"]) for t in guardados)
+    # Corregido tras el extracto (07/10/2026): el servicio L4 Ll. Llarga -> Empalme
+    # nace en Ll. Llarga (final de ramal); antes se dibujaba viniendo de Parc Científic.
+    corr = {(4, "Empalme", 1972.0): (4, "Empalme", 2333.0)}
+    b = sorted(corr.get(k, k) for k in
+               (clave(t["linea"], t["destino"], t["d"]) for t in guardados))
     assert a == b
     for t in est:
         assert t.waypoints[0]["eta"] == 0
