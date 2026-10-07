@@ -194,8 +194,12 @@ def trenes_paso(net, trenes: list[dict], linea: int, s: int, t: int,
         d_now = tr["waypoints"][0]["d"]
         if (d_s - d_now) * sentido < -MARGEN_D:
             continue                       # ya pasó por la estación de subida
-        if d_dest is not None and (d_dest - d_t) * sentido < -MARGEN_D:
-            continue                       # acaba antes de llegar a donde bajo
+        if d_dest is not None:
+            # El destino del tren debe estar:
+            # - En CUALQUIER sentido: no antes de (d_t - MARGEN_D)
+            # - En sentido BACKWARD: no después de (d_t + MARGEN_D)
+            if d_dest < d_t - MARGEN_D or (sentido < 0 and d_dest > d_t + MARGEN_D):
+                continue                   # destino no válido para esta ruta
         buenos.append((abs(d_s - d_now), tr))
     buenos.sort(key=lambda x: x[0])
     # ETA a S: el k-ésimo tren más cercano de cada destino <-> k-ésima llegada
