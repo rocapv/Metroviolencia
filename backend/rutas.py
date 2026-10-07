@@ -176,8 +176,7 @@ def trenes_paso(net, trenes: list[dict], linea: int, s: int, t: int,
                 llegadas_s: list[tuple[int, str, int]], destinos_validos: list[str] | None = None) -> list[dict]:
     """Trenes en vivo de `linea` que sirven para ir de S a T, ordenados por
     llegada a S, con su ETA a S (de los tiempos reales de la estación).
-    Si destinos_validos se proporciona (nombres de estaciones del planificador),
-    solo incluye trenes a esos destinos."""
+    `destinos_validos`: "Trenes con destino" del planificador para este paso."""
     lc = net.comerciales.get(linea)
     if not lc:
         return []
@@ -185,18 +184,19 @@ def trenes_paso(net, trenes: list[dict], linea: int, s: int, t: int,
     if d_s is None or d_t is None or abs(d_t - d_s) < 1:
         return []
     sentido = 1 if d_t > d_s else -1
+    # solo se filtra si todos los nombres del planificador existen en la red:
+    # si alguno no casa, filtrar podría vaciar la lista de trenes buenos
+    validos = {d.strip().lower() for d in destinos_validos or []}
+    if any(net.id_por_nombre(d.strip()) is None for d in destinos_validos or []):
+        validos = set()
     buenos = []
     for tr in trenes:
         if tr["linea"] != linea or not tr.get("waypoints"):
             continue
-        # Si hay lista de destinos válidos del planificador, validar contra ella
-        # Aplicar SIEMPRE el filtro si se proporciona, no solo si tiene contenido
-        if destinos_validos is not None:
-            # Debug: log qué se está filtrando
-            if tr["destino"] not in destinos_validos:
-                import sys
-                print(f"DEBUG: Filtrando tren L{linea} {tr['destino']!r} no en {destinos_validos!r}", file=sys.stderr)
-                continue
+        # En líneas con ramales (L4) la distancia sobre una sola polyline no
+        # distingue ramas: manda la lista de destinos del planificador oficial.
+        if validos and tr["destino"].strip().lower() not in validos:
+            continue
         dest_id = net.id_por_nombre(tr["destino"])
         d_dest = lc.station_dist(dest_id) if dest_id is not None else None
         if _sentido_tren(tr, d_dest) != sentido:
@@ -204,12 +204,8 @@ def trenes_paso(net, trenes: list[dict], linea: int, s: int, t: int,
         d_now = tr["waypoints"][0]["d"]
         if (d_s - d_now) * sentido < -MARGEN_D:
             continue                       # ya pasó por la estación de subida
-        if d_dest is not None:
-            # El destino del tren debe estar:
-            # - En CUALQUIER sentido: no antes de (d_t - MARGEN_D)
-            # - En sentido BACKWARD: no después de (d_t + MARGEN_D)
-            if d_dest < d_t - MARGEN_D or (sentido < 0 and d_dest > d_t + MARGEN_D):
-                continue                   # destino no válido para esta ruta
+        if d_dest is not None and (d_dest - d_t) * sentido < -MARGEN_D:
+            continue                       # acaba antes de llegar a donde bajo
         buenos.append((abs(d_s - d_now), tr))
     buenos.sort(key=lambda x: x[0])
     # ETA a S: el k-ésimo tren más cercano de cada destino <-> k-ésima llegada

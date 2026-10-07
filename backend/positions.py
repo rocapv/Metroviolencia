@@ -115,6 +115,11 @@ def estimar(net: Network, llegadas: list[tuple[int, int, str, int]]) -> list[Tre
             if prev is None or eta < prev:
                 grupos[(linea, destino)][est_id] = eta
 
+    retorno = set(net.estaciones_retorno())
+    con_dato: dict[int, set[int]] = defaultdict(set)  # linea -> estaciones con llegadas
+    for (linea, _dest), etas in grupos.items():
+        con_dato[linea].update(etas)
+
     # tiempo de tramo (s) por pareja de estaciones, de los propios ETAs
     muestras: dict[tuple[int, frozenset], list[int]] = defaultdict(list)
     for (linea, _dest), etas in grupos.items():
@@ -170,7 +175,20 @@ def estimar(net: Network, llegadas: list[tuple[int, int, str, int]]) -> list[Tre
             prev_i = i0 - sentido
             waypoints = []
             origen = False
-            if 0 <= prev_i < len(orden_ids[linea]):
+            # La estación anterior anuncia esta línea pero no este destino: el
+            # servicio NACE en s0 (p.ej. L4 Empalme -> Ll. Llarga; Palau no lo
+            # anuncia). Está en cabecera, no viene de la anterior.
+            # Solo en estaciones de retorno: un destino poco frecuente puede no
+            # salir en el panel (corto) de la anterior sin que el tren nazca aquí.
+            atras = (orden_ids[linea][prev_i::-1] if sentido > 0
+                     else orden_ids[linea][prev_i:]) if 0 <= prev_i < len(orden_ids[linea]) else []
+            nace_aqui = (net.estaciones[s0].nombre in retorno
+                         and bool(atras) and atras[0] in con_dato[linea]
+                         and not any(s in etas for s in atras))
+            if nace_aqui:
+                origen = True
+                waypoints.append({"d": round(dist[linea][s0], 1), "eta": 0})
+            elif 0 <= prev_i < len(orden_ids[linea]):
                 prev_id = orden_ids[linea][prev_i]
                 ea, eb = net.estaciones[prev_id], net.estaciones[s0]
                 if frozenset((ea.nombre.lower(), eb.nombre.lower())) in cerrados:
