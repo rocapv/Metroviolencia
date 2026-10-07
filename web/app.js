@@ -591,11 +591,13 @@ function animar() {
     const dir = dirTren(e.tren);
     // Mai cap arrere: si una pasada nova porta la mateixa trajectòria (la font no
     // s'ha mogut) o el tren es marca congelat, recalcular des del seu d0 el tornaria
-    // on era en obrir el mapa. Es queda on es veu fins que les dades l'atrapen. Un
-    // salt gran (>1,5 km) o canvi de sentit sí es respecta: és un altre tren.
+    // on era en obrir el mapa. Es queda on es veu fins que les dades l'atrapen. Amb
+    // el mateix track_id és el mateix tren físic: sempre es reté. Sense id, un salt
+    // gran (>1,5 km) es respecta (pot ser un altre tren); el canvi de sentit, sempre.
+    const mateix = e.tren.id != null && e.idTop === e.tren.id;
     if (e.dTop != null && e.dirTop === dir && (e.dTop - d) * dir > 0
-        && (e.dTop - d) * dir < 1500) d = e.dTop;
-    e.dTop = d; e.dirTop = dir;
+        && (mateix || (e.dTop - d) * dir < 1500)) d = e.dTop;
+    e.dTop = d; e.dirTop = dir; e.idTop = e.tren.id;
     items.push({ e, t: e.tren, d, dir, h: headingVec(e.tren, d), shift: 0 });
   }
   // 2) posa en fila els trens de línies diferents que comparteixen via
