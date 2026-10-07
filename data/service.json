@@ -3,9 +3,11 @@
     "València Sud",
     "Empalme",
     "Av. del Cid",
-    "Alameda"
+    "Alameda",
+    "Ll. Llarga - Terramelar",
+    "Fira València"
   ],
-  "_nota_retorno": "Estaciones intermedias donde los trenes pueden terminar, descansar e invertir el sentido. València Sud es además depósito. Los finales de línea también son cabeceras.",
+  "_nota_retorno": "Estaciones intermedias donde los trenes pueden terminar, descansar e invertir el sentido. València Sud es además depósito. Los finales de línea también son cabeceras. Ll. Llarga y Fira València son finales de ramal de la L4 (la polyline única no los ve como extremo).",
   "subterraneos": [
     {
       "linea": 10,
