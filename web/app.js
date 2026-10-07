@@ -586,9 +586,17 @@ function animar() {
   // 1) estat viu de cada tren visible (distància sobre la via, direcció, rumb)
   const items = [];
   for (const e of marcadores.values()) {
-    const d = distVivaTren(e.tren);
+    let d = distVivaTren(e.tren);
     if (d == null) continue;
-    items.push({ e, t: e.tren, d, dir: dirTren(e.tren), h: headingVec(e.tren, d), shift: 0 });
+    const dir = dirTren(e.tren);
+    // Mai cap arrere: si una pasada nova porta la mateixa trajectòria (la font no
+    // s'ha mogut) o el tren es marca congelat, recalcular des del seu d0 el tornaria
+    // on era en obrir el mapa. Es queda on es veu fins que les dades l'atrapen. Un
+    // salt gran (>1,5 km) o canvi de sentit sí es respecta: és un altre tren.
+    if (e.dTop != null && e.dirTop === dir && (e.dTop - d) * dir > 0
+        && (e.dTop - d) * dir < 1500) d = e.dTop;
+    e.dTop = d; e.dirTop = dir;
+    items.push({ e, t: e.tren, d, dir, h: headingVec(e.tren, d), shift: 0 });
   }
   // 2) posa en fila els trens de línies diferents que comparteixen via
   resolveColas(items);
