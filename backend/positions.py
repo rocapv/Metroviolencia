@@ -192,6 +192,10 @@ def estimar(net: Network, llegadas: list[tuple[int, int, str, int]]) -> list[Tre
                 waypoints.append({"d": round(dist[linea][s], 1), "eta": int(e),
                                   "nom": net.estaciones[s].nombre})
 
+            # Limitar todos los waypoints al rango válido de la línea (no salirse de la polyline)
+            for wp in waypoints:
+                wp["d"] = max(0.0, min(lc.length, wp["d"]))
+
             lat, lng = lc.dist_to_latlng(waypoints[0]["d"])
             trenes.append(Tren(
                 linea=linea, destino=destino, color=lc.color,
