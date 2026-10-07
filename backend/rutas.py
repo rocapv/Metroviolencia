@@ -173,9 +173,11 @@ def _sentido_tren(tren: dict, d_dest: float | None) -> int:
 
 
 def trenes_paso(net, trenes: list[dict], linea: int, s: int, t: int,
-                llegadas_s: list[tuple[int, str, int]]) -> list[dict]:
+                llegadas_s: list[tuple[int, str, int]], destinos_validos: list[str] | None = None) -> list[dict]:
     """Trenes en vivo de `linea` que sirven para ir de S a T, ordenados por
-    llegada a S, con su ETA a S (de los tiempos reales de la estación)."""
+    llegada a S, con su ETA a S (de los tiempos reales de la estación).
+    Si destinos_validos se proporciona (nombres de estaciones del planificador),
+    solo incluye trenes a esos destinos."""
     lc = net.comerciales.get(linea)
     if not lc:
         return []
@@ -186,6 +188,9 @@ def trenes_paso(net, trenes: list[dict], linea: int, s: int, t: int,
     buenos = []
     for tr in trenes:
         if tr["linea"] != linea or not tr.get("waypoints"):
+            continue
+        # Si hay lista de destinos válidos del planificador, validar contra ella
+        if destinos_validos and tr["destino"] not in destinos_validos:
             continue
         dest_id = net.id_por_nombre(tr["destino"])
         d_dest = lc.station_dist(dest_id) if dest_id is not None else None
@@ -290,7 +295,8 @@ def enriquecer(net, alts: list[dict], trenes: list[dict],
             vistas = {lin for lin, _d, _e in llegadas.get(s, [])}
             p["lineas"] = lineas_paso(net, s, t, vistas)
             p["trenes"] = [x for lin in p["lineas"]
-                           for x in trenes_paso(net, trenes, lin, s, t, llegadas.get(s, []))]
+                           for x in trenes_paso(net, trenes, lin, s, t, llegadas.get(s, []),
+                                               p.get("destinos"))]
             p["trenes"].sort(key=lambda x: (x["eta_subida"] is None, x["eta_subida"] or 0))
             if dia and ts_datos:
                 desfases(p["trenes"], p["salidas"], dia, ts_datos)
