@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import threading
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -237,6 +239,45 @@ def test_ruta_planificador_caido_da_502(cliente, monkeypatch):
     r = cliente.get("/api/ruta?origen=107&destino=54", headers=LAN)
     assert r.status_code == 502
     assert "planificador" in r.json()["error"]
+
+
+def test_ruta_no_mezcla_clientes(cliente, monkeypatch):
+    """Cuatro clientes piden rutas distintas A LA VEZ: cada uno recibe la suya.
+
+    Los campos `origen`/`destino` de la respuesta los copia la API de los
+    parametros, asi que comprobarlos no demuestra nada; esto mira el CONTENIDO
+    (el primer paso de la alternativa). Guarda contra meter en el servidor
+    cualquier "ultima ruta" global, que serviria la de otro cliente.
+    """
+    from backend import rutas
+
+    def _planifica(_s, _h, _v, origen, destino):
+        time.sleep(0.05)                     # solapa las peticiones entre si
+        return {"dia": dt.date.today().isoformat(), "ventana": "2h",
+                "alternativas": [{"transbordos": 0, "duracion_min": 10,
+                                  "pasos": [{"de": f"EST{origen}", "a": f"EST{destino}",
+                                             "transbordo": False, "salidas": [],
+                                             "destinos": []}]}]}
+
+    monkeypatch.setattr(rutas, "consultar_ruta", _planifica)
+    monkeypatch.setattr(poller, "make_session", lambda: object())
+
+    parejas = [(107, 54), (25, 64), (1, 40), (30, 5)]
+    res: dict[tuple[int, int], dict] = {}
+
+    def pide(o, d):
+        res[(o, d)] = cliente.get(f"/api/ruta?origen={o}&destino={d}", headers=LAN).json()
+
+    hilos = [threading.Thread(target=pide, args=par) for par in parejas]
+    for h in hilos:
+        h.start()
+    for h in hilos:
+        h.join()
+
+    for o, d in parejas:
+        paso = res[(o, d)]["alternativas"][0]["pasos"][0]
+        assert (paso["de"], paso["a"]) == (f"EST{o}", f"EST{d}"), \
+            f"el cliente {o}->{d} ha recibido la ruta {paso['de']}->{paso['a']}"
 
 
 def test_frontend_estatico(cliente):

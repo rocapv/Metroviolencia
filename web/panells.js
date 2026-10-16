@@ -11,8 +11,13 @@
   const hm = (t) => t ? new Date(t * 1000).toLocaleTimeString("ca-ES", { hour: "2-digit", minute: "2-digit" }) : "—";
   const fmtRet = (s) => s == null ? "" : Math.abs(s) < 60 ? "a l'hora"
     : (s > 0 ? "+" : "−") + Math.round(Math.abs(s) / 60) + " min";
-  const guarda = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
-  const llig = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+  /* L'estat de la ruta és NOMÉS d'esta pestanya: sessionStorage aïlla cada
+     client (pestanya o finestra nova = usuari nou). Amb localStorage el
+     compartien totes les pestanyes del navegador i una veia la ruta de
+     l'altra en obrir la web. */
+  const guarda = (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const llig = (k) => { try { return JSON.parse(sessionStorage.getItem(k)); } catch (e) { return null; } };
+  try { localStorage.removeItem("mv_ruta"); } catch (e) {}   // herència de versions antigues
 
   /* ---------------- menú: un sol panell obert ---------------- */
   function obri(id) {
