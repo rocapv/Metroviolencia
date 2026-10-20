@@ -6,8 +6,9 @@ trenes de esas líneas en un único sentido.
 
 Fuera quedan las cabeceras intermedias (València Sud, Empalme, Seminari,
 Picassent, Paterna, Machado, Av. del Cid, Almàssera...): ahí se mezclan
-salidas con trenes de paso y la fuente no permite distinguirlos. Tampoco
-Benimaclet para L1: la fuente no lista allí los trenes de L1.
+salidas con trenes de paso y la fuente no permite distinguirlos. (El
+"Benimaclet" que la fuente rotula en L1 no es una cabecera: es Bétera mal
+etiquetado; el parser lo corrige, ver parser.DESTINO_ALIAS.)
 """
 from __future__ import annotations
 

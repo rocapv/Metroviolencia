@@ -117,3 +117,11 @@ def test_bloque_incompleto_se_descarta():
     html = CABECERA + roto + _bloque(2, "Torrent Avinguda", "9 min") + PIE
     llegadas = parse_arrivals(html)
     assert [(a.linea, a.destino, a.eta_seg) for a in llegadas] == [(2, "Torrent Avinguda", 540)]
+
+
+def test_alias_destino_l1_benimaclet_es_betera():
+    """FGV rotula 'Benimaclet' los L1 Castelló -> Bétera (Benimaclet no está en
+    L1). El parser lo corrige solo para L1: en L3/L4/L6/L9 Benimaclet es real."""
+    html = CABECERA + _bloque(1, "Benimaclet", "3 min") + _bloque(3, "Benimaclet", "4 min") + PIE
+    llegadas = parse_arrivals(html)
+    assert [(a.linea, a.destino) for a in llegadas] == [(1, "Bétera"), (3, "Benimaclet")]

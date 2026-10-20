@@ -303,8 +303,10 @@ def reprocesar(con: sqlite3.Connection, desde: int, net) -> int:
 def _vecina(net, linea: int, sid: int, destino: str,
             sentido: int | None = None) -> int | None:
     """Estación siguiente a `sid` en la línea, en el sentido del destino. Si el
-    destino no está en el trazado de la línea (p. ej. L1 rotulada "Benimaclet"
-    que en realidad va hacia Moncada), usa `sentido` (+1 = orden creciente)."""
+    destino no está en el trazado de la línea (pasó con la L1 rotulada
+    "Benimaclet" = Bétera, hoy corregida en parser.DESTINO_ALIAS; queda como
+    red para el histórico y para rótulos nuevos), usa `sentido` (+1 = orden
+    creciente)."""
     lc = net.comerciales.get(linea)
     if not lc:
         return None

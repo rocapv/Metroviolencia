@@ -38,6 +38,21 @@ def _clean(s: str) -> str:
     return unescape(re.sub(r"<[^>]+>", "", s)).strip()
 
 
+# Destinos mal rotulados por la fuente, por (línea, texto que da la web).
+# L1 "Benimaclet": Benimaclet no está en L1 (es de L3/L4/L6/L9); FGV rotula así
+# los trenes Castelló -> Bétera (se ha comprobado con los datos: esos trenes
+# llegan a Horta Vella y Masies, las paradas anteriores a Bétera). Se corrige al
+# parsear para que posiciones, registro de salidas, horarios y mapa vean el
+# destino real; sin esto la salida de Castelló se casaba con "Seminari - CEU".
+DESTINO_ALIAS: dict[tuple[int, str], str] = {
+    (1, "Benimaclet"): "Bétera",
+}
+
+
+def destino_real(linea: int, destino: str) -> str:
+    return DESTINO_ALIAS.get((linea, destino), destino)
+
+
 def parse_eta(txt: str) -> int:
     """'1 min' -> 60 ; '1 h 29 min' -> 5340 ; '2 h' -> 7200. Devuelve segundos."""
     txt = txt.strip().lower()
@@ -70,10 +85,11 @@ def parse_arrivals(html: str) -> list[Arrival]:
         if not (ml and md and mm):
             continue
         eta_txt = _clean(mm.group(1))
+        linea = int(ml.group(1))
         arrivals.append(
             Arrival(
-                linea=int(ml.group(1)),
-                destino=_clean(md.group(1)),
+                linea=linea,
+                destino=destino_real(linea, _clean(md.group(1))),
                 eta_seg=parse_eta(eta_txt),
                 eta_txt=eta_txt,
                 ocupacion=None,  # el servidor aún no la expone (campo comentado)
