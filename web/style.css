@@ -138,7 +138,10 @@ html, body {
   font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: var(--muted);
+  white-space: nowrap;
 }
+#reloj .reloj-sep { opacity: 0.4; margin: 0 7px; }
+#reloj .reloj-vell { color: #e8c07a; }
 
 /* trenes */
 .tren-wrap { position: relative; width: 20px; height: 20px; }

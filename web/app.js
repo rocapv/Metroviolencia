@@ -43,6 +43,7 @@ let colores = {};                  // color per línia comercial
 let comerciales = {};              // {lid: {path, cum, length}}
 let ultimoTrenes = [];
 let ultimoTs = 0;
+let ultimoFetchMs = 0;   // Date.now() de l'últim /api/trains rebut (comptador 'client' del rellotge)
 let noinfo = [];                   // línies metro sense info ara mateix (tall de font)
 let sinTiempoReal = [];            // trams sense temps real (sempre)
 let estacionesRetorno = new Set(); // capçaleres/retorns on els trens descansen
@@ -729,6 +730,7 @@ async function refrescar() {
     }
     ultimoTrenes = data.trenes || [];
     ultimoTs = data.ts || Math.floor(serverNow() / 1000);
+    ultimoFetchMs = t1;
     noinfo = data.noinfo || [];
     actualitzaCongelats(ultimoTrenes);
     pintarTrenes(ultimoTrenes);
@@ -745,7 +747,17 @@ async function refrescar() {
 }
 
 function tickSegon() {
-  document.getElementById("reloj").textContent = new Date().toLocaleTimeString("ca-ES");
+  document.getElementById("reloj-hora").textContent = new Date().toLocaleTimeString("ca-ES");
+  // segons des de l'última lectura de FGV (snapshot del servidor, hora de la Raspa)
+  // i des de l'últim refresc d'aquest client; passats 150 s de FGV, en ambre
+  const fgv = document.getElementById("reloj-fgv");
+  const cli = document.getElementById("reloj-cli");
+  if (ultimoTs) {
+    const s = Math.max(0, Math.floor(serverNow() / 1000) - ultimoTs);
+    fgv.textContent = `FGV ${s} s`;
+    fgv.classList.toggle("reloj-vell", s > 150);
+  }
+  if (ultimoFetchMs) cli.textContent = `client ${Math.max(0, Math.floor((Date.now() - ultimoFetchMs) / 1000))} s`;
   const arrEls = document.querySelectorAll(".pop-arr .arr-eta");
   if (arrEls.length) {
     const passat = Math.max(0, Math.floor(serverNow() / 1000) - (arrivalsCache.ts || 0));
