@@ -155,6 +155,19 @@ def test_trains_desde_tabla_trenes(cliente, extracto, tmp_path):
         assert {"id", "linea", "destino", "color", "lat", "lng", "prox_estacion",
                 "eta_seg", "origen", "waypoints", "retraso"} <= set(t)
         assert isinstance(t["waypoints"], list) and t["waypoints"][0]["eta"] == 0
+
+
+def test_ultimo_marca_la_ultima_pasada_servida(cliente, extracto):
+    """/api/ultimo: ts de la última pasada con trenes (barato, el cliente lo
+    consulta cada 2 s para refrescar justo cuando hay datos nuevos)."""
+    r = cliente.get("/api/ultimo", headers=LAN)
+    assert r.status_code == 200
+    j = r.json()
+    ultimo = [t for t in extracto["trenes"] if t["snapshot_id"] == 31114]
+    assert j["ts"] == ultimo[0]["ts"]
+    assert "ts_fin" in j and "srv_ms" in j
+    # /api/trains lleva la misma marca
+    assert cliente.get("/api/trains", headers=LAN).json()["ts_fin"] == j["ts_fin"]
         assert t["retraso"] is None or {"retraso_s", "estacion", "hora_prog"} == set(t["retraso"])
         if t["origen"]:
             assert t["retraso"] is None

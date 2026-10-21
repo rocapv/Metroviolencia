@@ -122,8 +122,9 @@ def en_servicio(con: sqlite3.Connection, ts: int) -> bool:
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS snapshots (
-    id   INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts   INTEGER NOT NULL
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts     INTEGER NOT NULL,          -- inicio de la pasada (referencia de las ETAs)
+    ts_fin INTEGER                    -- fin de la pasada: los datos ya están servidos
 );
 CREATE TABLE IF NOT EXISTS arrivals (
     snapshot_id INTEGER NOT NULL,
@@ -207,6 +208,10 @@ def init_db() -> sqlite3.Connection:
         con.execute("ALTER TABLE lecturas_fallidas ADD COLUMN motivo TEXT NOT NULL DEFAULT 'error'")
     except sqlite3.OperationalError:
         pass
+    try:   # bases anteriores a ts_fin (fin de pasada; el cliente lo usa para sincronizarse)
+        con.execute("ALTER TABLE snapshots ADD COLUMN ts_fin INTEGER")
+    except sqlite3.OperationalError:
+        pass
     con.executescript(SCHEMA)
     con.commit()
     horarios.init_db(con)
@@ -286,8 +291,12 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
 
     global ULTIMAS_LLEGADAS
     ULTIMAS_LLEGADAS = len(rows)
+    # fin de la pasada: desde aquí los trenes de este snapshot están servidos
+    ts_fin = int(time.time())
+    con.execute("UPDATE snapshots SET ts_fin=? WHERE id=?", (ts_fin, snap_id))
+    con.commit()
     faltan = ", ".join(f"L{l}" for _s, _t, l in ni) or "-"
-    print(f"[{time.strftime('%H:%M:%S')}] snapshot {snap_id}: "
+    print(f"[{time.strftime('%H:%M:%S')}] snapshot {snap_id} ({ts_fin - ts} s): "
           f"{ok}/{len(net.estaciones)} estaciones, {len(rows)} llegadas, "
           f"{n_tr} trenes, NoInfo: {faltan}, salidas: {sal['salen']} "
           f"(+{sal['nuevas']} previstas, {sal['desaparecen']} caídas), "

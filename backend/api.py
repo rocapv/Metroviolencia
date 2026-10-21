@@ -160,6 +160,33 @@ def _noinfo(con, snap_id: int) -> list:
         return []  # tabla aún no creada
 
 
+def _ts_fin(con, snap_id: int) -> int | None:
+    """Fin de la pasada (None en bases sin la columna o pasadas antiguas)."""
+    try:
+        r = con.execute("SELECT ts_fin FROM snapshots WHERE id=?", (snap_id,)).fetchone()
+        return r["ts_fin"] if r else None
+    except sqlite3.OperationalError:
+        return None
+
+
+@app.get("/api/ultimo")
+def ultimo():
+    """Marca de la última pasada servida (ts de inicio y ts_fin), para que el
+    cliente se sincronice con el poller y pida /api/trains justo cuando hay
+    datos nuevos, en vez de cada minuto a ciegas. Barato: se consulta cada 2 s."""
+    _touch_client()
+    con = _con()
+    try:
+        row = con.execute(
+            "SELECT snapshot_id, ts FROM trenes ORDER BY snapshot_id DESC LIMIT 1").fetchone()
+    except sqlite3.OperationalError:
+        row = None
+    if row is None:
+        return {"ts": None, "ts_fin": None, "srv_ms": int(time.time() * 1000)}
+    return {"ts": row["ts"], "ts_fin": _ts_fin(con, row["snapshot_id"]),
+            "srv_ms": int(time.time() * 1000)}
+
+
 @app.get("/api/trains")
 def trains():
     _touch_client()   # hay cliente activo -> el poller irá a 1 min
@@ -190,7 +217,7 @@ def trains():
                 t["retraso"] = None if t["origen"] else pasos.retraso_vivo(con, _net(), t, ts)
             except sqlite3.OperationalError:
                 t["retraso"] = None
-        return {"ts": ts, "edad_seg": int(time.time()) - ts,
+        return {"ts": ts, "ts_fin": _ts_fin(con, snap_id), "edad_seg": int(time.time()) - ts,
                 "srv_ms": int(time.time() * 1000),
                 "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap_id)}
 

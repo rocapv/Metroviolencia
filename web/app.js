@@ -1,6 +1,7 @@
 /* Metroviolencia · frontend (valencià) — trens animats sobre la via */
 const API = "";
-const REFRESH_MS = 60000;   // el client demana a la Raspa cada minut (la Raspa mira Metrovalencia cada 5 min)
+const REFRESH_MS = 90000;   // refresc de seguretat; el normal el dispara el servidor (vigilaServidor)
+const VIGILA_MS = 2000;     // cada quant es pregunta a /api/ultimo si hi ha pasada nova
 const ANIM_MS = 500;        // pas d'animació dels punts
 
 const NOMBRES_LINEA = {
@@ -44,6 +45,8 @@ let comerciales = {};              // {lid: {path, cum, length}}
 let ultimoTrenes = [];
 let ultimoTs = 0;
 let ultimoFetchMs = 0;   // Date.now() de l'últim /api/trains rebut (comptador 'client' del rellotge)
+let ultimoTsFin = 0;     // fi de l'última pasada del poller (comptador 'FGV' del rellotge)
+let refrescant = false;
 let noinfo = [];                   // línies metro sense info ara mateix (tall de font)
 let sinTiempoReal = [];            // trams sense temps real (sempre)
 let estacionesRetorno = new Set(); // capçaleres/retorns on els trens descansen
@@ -713,6 +716,8 @@ function actualitzaCongelats(trenes) {
 }
 
 async function refrescar() {
+  if (refrescant) return;
+  refrescant = true;
   try {
     const t0 = Date.now();
     const data = await (await fetch(API + "api/trains?_=" + Date.now(), { cache: "no-store" })).json();
@@ -731,6 +736,7 @@ async function refrescar() {
     ultimoTrenes = data.trenes || [];
     ultimoTs = data.ts || Math.floor(serverNow() / 1000);
     ultimoFetchMs = t1;
+    ultimoTsFin = data.ts_fin || ultimoTs;
     noinfo = data.noinfo || [];
     actualitzaCongelats(ultimoTrenes);
     pintarTrenes(ultimoTrenes);
@@ -743,7 +749,22 @@ async function refrescar() {
       `<b>${ultimoTrenes.length}</b> trens en directe<br>dades fa <b>${edad}</b>${ni}${ping}`;
   } catch (e) {
     document.getElementById("stats").textContent = "sense connexió amb el backend";
+  } finally {
+    refrescant = false;
   }
+}
+
+// El poller llig FGV cada minut (pasada de ~26 s). En lloc de refrescar cada
+// minut a cegues (fins a 60 s de retard afegit), es pregunta cada 2 s si hi ha
+// pasada nova i, si n'hi ha, es demanen els trens: els comptadors del rellotge
+// es reinicien quan toca, no quan cau el temporitzador.
+async function vigilaServidor() {
+  if (refrescant) return;
+  try {
+    const j = await (await fetch(API + "api/ultimo?_=" + Date.now(), { cache: "no-store" })).json();
+    const marca = j.ts_fin || j.ts || 0;
+    if (marca > (ultimoTsFin || ultimoTs)) refrescar();
+  } catch (e) { /* sense xarxa: el refresc de seguretat ja ho dirà */ }
 }
 
 function tickSegon() {
@@ -753,7 +774,7 @@ function tickSegon() {
   const fgv = document.getElementById("reloj-fgv");
   const cli = document.getElementById("reloj-cli");
   if (ultimoTs) {
-    const s = Math.max(0, Math.floor(serverNow() / 1000) - ultimoTs);
+    const s = Math.max(0, Math.floor(serverNow() / 1000) - (ultimoTsFin || ultimoTs));
     fgv.textContent = `FGV ${s} s`;
     fgv.classList.toggle("reloj-vell", s > 150);
   }
@@ -783,6 +804,7 @@ function tickSegon() {
   if (window.iniciaPanells) window.iniciaPanells();
   await refrescar();
   setInterval(refrescar, REFRESH_MS);
+  setInterval(vigilaServidor, VIGILA_MS);
   setInterval(animar, ANIM_MS);
   setInterval(tickSegon, 1000);
   tickSegon();
