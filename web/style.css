@@ -331,7 +331,10 @@ html, body {
 /* bombolla d'un missatge acabat d'arribar (5 s damunt del tren/estació) */
 .leaflet-tooltip.xat-bombolla {
   background: #1b1b26; color: #fff; border: 1px solid var(--viol); border-radius: 10px;
-  padding: 5px 9px; font-size: 12px; max-width: 220px; white-space: normal; word-break: break-word;
+  padding: 5px 9px; font-size: 12px; white-space: normal; word-break: break-word;
+  /* els panes de Leaflet no tenen amplària: amb white-space normal el tooltip es
+     reduïa a una lletra per línia i es mesurava mal; amplària pel contingut */
+  width: max-content; max-width: 220px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); animation: xat-apareix 0.25s ease-out;
 }
 .leaflet-tooltip.xat-bombolla::before { border-top-color: var(--viol); }
