@@ -165,7 +165,8 @@ CREATE TABLE IF NOT EXISTS trenes (
     eta_seg       INTEGER,
     origen        INTEGER,
     d             REAL,
-    waypoints     TEXT
+    waypoints     TEXT,
+    via           INTEGER         -- línea comercial que da la geometría (linea o variante de ramal)
 );
 CREATE INDEX IF NOT EXISTS idx_trenes_snap  ON trenes(snapshot_id);
 CREATE INDEX IF NOT EXISTS idx_trenes_track ON trenes(track_id, ts);

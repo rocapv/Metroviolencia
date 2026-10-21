@@ -287,13 +287,15 @@ def trains():
         snap_id, ts = row["snapshot_id"], row["ts"]
         trs = con.execute(
             "SELECT track_id,linea,destino,color,lat,lng,prox_estacion,eta_seg,"
-            "origen,waypoints FROM trenes WHERE snapshot_id=?", (snap_id,)
+            "origen,waypoints,via FROM trenes WHERE snapshot_id=?", (snap_id,)
         ).fetchall()
         trenes = [{
             "id": r["track_id"], "linea": r["linea"], "destino": r["destino"],
             "color": r["color"], "lat": r["lat"], "lng": r["lng"],
             "prox_estacion": r["prox_estacion"], "eta_seg": r["eta_seg"],
             "origen": bool(r["origen"]), "waypoints": json.loads(r["waypoints"]),
+            # geometría del tren: la línea o su variante de ramal (L4: 41/42)
+            "via": r["via"] or r["linea"],
         } for r in trs]
         # retraso en vivo frente al horario de paso (se ve al tocar el tren)
         for t in trenes:

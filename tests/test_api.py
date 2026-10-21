@@ -138,7 +138,8 @@ def test_network(cliente):
     assert r.status_code == 200
     j = r.json()
     assert len(j["estaciones"]) == 144
-    assert sorted(int(k) for k in j["comerciales"]) == list(range(1, 11))
+    assert sorted(int(k) for k, c in j["comerciales"].items() if c["variante_de"] is None) == list(range(1, 11))
+    assert {int(k) for k, c in j["comerciales"].items() if c["variante_de"] == 4} == {41, 42}
     assert isinstance(j["cierres"], list)
     assert "València Sud" in j["estaciones_retorno"]
 
@@ -190,7 +191,9 @@ def test_trains_fallback_estimando_al_vuelo(cliente, bd_real, extracto):
     assert r.status_code == 200
     j = r.json()
     ultimo = [t for t in extracto["trenes"] if t["snapshot_id"] == 31114]
-    assert j["n"] == len(ultimo)                 # mismo estimador que el poller
+    # mismo estimador que el poller; desde los ramales de L4 (21/10/2026) el
+    # extracto del 29/09 da un tren L4 más (el que espera en Fira València)
+    assert j["n"] == len(ultimo) + 1
     assert all("id" not in t for t in j["trenes"])   # sin identidad persistente
     assert j["ts"] == ultimo[0]["ts"]
 

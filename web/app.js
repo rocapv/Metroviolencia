@@ -79,6 +79,8 @@ const trenCongelat = (t) => {
 };
 
 const hex = (c) => (c && c.startsWith("#") ? c : "#" + (c || "888"));
+// geometria d'un tren: la seua via (variant de ramal, p. ex. 42 = L4 per Ll. Llarga) o la línia
+const viaDe = (t) => t.via || t.linea;
 
 /* ---------- distància sobre la via -> (lat,lng) ---------- */
 function distToLatLng(lid, d) {
@@ -86,7 +88,7 @@ function distToLatLng(lid, d) {
   if (!lc || !lc.cum || lc.cum.length < 2) return null;
   const cum = lc.cum, path = lc.path;
   const L = cum[cum.length - 1];
-  d = Math.max(0, Math.min(L, d));
+  d = Math.max(cum[0], Math.min(L, d));   // una variant de ramal no comença en 0
   let lo = 0, hi = cum.length - 1;
   while (lo < hi) { const m = (lo + hi) >> 1; if (cum[m] < d) lo = m + 1; else hi = m; }
   const i = Math.max(1, lo);
@@ -114,7 +116,7 @@ const etaViu = (t) => Math.max(0, t.eta_seg - Math.max(0, Math.floor(serverNow()
 function offsetCorredores(net) {
   const tram = net.tram_tracks || {};
   const metro = Object.keys(comerciales).map(Number)
-    .filter((l) => !(String(l) in tram)).sort((a, b) => a - b);
+    .filter((l) => !(String(l) in tram) && !comerciales[String(l)].variante_de).sort((a, b) => a - b);
   if (metro.length < 2) return;
   const SPACING = 7, CELL = 16;
   const grid = new Map();
@@ -192,7 +194,7 @@ async function cargarRed() {
   // METRO: dibuixa la via comercial, RETALLANT els trams tallats (no es veu L5/L7
   // entre Alameda i Marítim; allà només el punteado gris animat)
   for (const [lid, lc] of Object.entries(comerciales)) {
-    if (String(lid) in (net.tram_tracks || {})) continue;   // trams a part
+    if (String(lid) in (net.tram_tracks || {}) || lc.variante_de) continue;   // trams a part; variants no es dibuixen
     const col = hex("#" + lc.color);
     for (const piece of clipPath(lid, closedRanges[lid] || [])) {
       addLayer(Number(lid), L.polyline(piece, { color: col, weight: 3.5,
@@ -403,7 +405,7 @@ function distVivaTren(t) {
 }
 function posicioViva(t) {
   const d = distVivaTren(t);
-  return (d == null ? null : distToLatLng(t.linea, d)) || [t.lat, t.lng];
+  return (d == null ? null : distToLatLng(viaDe(t), d)) || [t.lat, t.lng];
 }
 // pròxima parada viva (primer waypoint amb nom i eta > temps transcorregut)
 function proxParada(t) {
@@ -509,8 +511,8 @@ function velTren(t) {
 }
 // angle en pantalla (graus) del rumb del tren a la posició d
 function rumbPantalla(t, d) {
-  const a = distToLatLng(t.linea, d);
-  const b = distToLatLng(t.linea, d + dirTren(t) * 40);
+  const a = distToLatLng(viaDe(t), d);
+  const b = distToLatLng(viaDe(t), d + dirTren(t) * 40);
   if (!a || !b) return 0;
   const pa = map.latLngToContainerPoint(a), pb = map.latLngToContainerPoint(b);
   return Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI;
@@ -557,7 +559,7 @@ function metresEntre(a, b) {
 // vector unitari (en metres) del rumb del tren a la distància d sobre la via
 function headingVec(t, d) {
   const dir = dirTren(t);
-  const a = distToLatLng(t.linea, d), b = distToLatLng(t.linea, d + dir * 30);
+  const a = distToLatLng(viaDe(t), d), b = distToLatLng(viaDe(t), d + dir * 30);
   if (!a || !b) return [0, 0];
   const vx = (b[0] - a[0]) * 111000, vy = (b[1] - a[1]) * 85000;
   const L = Math.hypot(vx, vy) || 1;
@@ -573,8 +575,8 @@ function resolveColas(items) {
         const A = items[i], B = items[j];
         if (A.t.linea === B.t.linea) continue;                 // mateixa línia: ja van en fila
         if (A.h[0] * B.h[0] + A.h[1] * B.h[1] < 0.5) continue;  // sentits distints: doble via, ok
-        const pA = distToLatLng(A.t.linea, A.d - A.dir * A.shift);
-        const pB = distToLatLng(B.t.linea, B.d - B.dir * B.shift);
+        const pA = distToLatLng(viaDe(A.t), A.d - A.dir * A.shift);
+        const pB = distToLatLng(viaDe(B.t), B.d - B.dir * B.shift);
         if (!pA || !pB) continue;
         const gap = metresEntre(pA, pB);
         if (gap >= COLA_MIN_SEP) continue;
@@ -625,7 +627,7 @@ function animar() {
     if (ag <= 8) e.dViz = dEff;
     else e.dViz += Math.sign(gap) * Math.min(ag, Math.max(8, ag * 0.30));
     const dViz = e.dViz;
-    e.marker.setLatLng(distToLatLng(t.linea, dViz) || [t.lat, t.lng]);
+    e.marker.setLatLng(distToLatLng(viaDe(t), dViz) || [t.lat, t.lng]);
 
     // punt NOMÉS quan és un tren esperant en la seua capçalera d'origen;
     // qualsevol tren en trànsit (encara que arribe a una terminal) va amb fletxa
