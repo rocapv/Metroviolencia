@@ -192,6 +192,18 @@ html, body {
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .arr-eta.imminent { color: #35d07f; }
+/* desfase breu de cada arribada (+2' / −1' / ·) amb els colors de .ruta-desf */
+.arr-desf { font-weight: 700; font-variant-numeric: tabular-nums; }
+/* trens cancel·lats hui a l'estació: en roig, es queden tot el dia */
+.pop-canc { margin-top: 8px; }
+.pop-canc-tit { color: #f87171; }
+.canc-row {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  color: #f87171; font-size: 12px; padding: 3px 0; border-top: 1px solid rgba(248, 113, 113, 0.18);
+}
+.canc-hora { font-weight: 700; font-variant-numeric: tabular-nums; }
+.canc-row .pop-linea { margin-right: 2px; }
+.canc-cap { color: #f87171; opacity: 0.85; }
 
 .link-registre { display: block; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .link-registre:hover { color: var(--txt); }

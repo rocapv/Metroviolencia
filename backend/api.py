@@ -4,7 +4,8 @@ API de Metroviolencia (FastAPI).
 Endpoints:
     GET /api/network   -> geometría estática (líneas, estaciones, colores)
     GET /api/trains    -> trenes estimados del último snapshot
-    GET /api/arrivals  -> llegadas crudas del último snapshot (por estación)
+    GET /api/arrivals  -> llegadas crudas del último snapshot (por estación), con su desfase
+    GET /api/cancelats -> trenes programados que no han pasado por una estación (?estacio=ID&dia=)
     GET /api/ruta      -> ruta origen->destino y trenes en vivo a coger (?origen=&destino=)
     GET /api/retards_ruta -> retrasos al pasar por cada estación (?dia=YYYY-MM-DD)
     GET /api/registro  -> salidas programadas vs reales de un día (?dia=YYYY-MM-DD)
@@ -144,14 +145,61 @@ def arrivals():
         "WHERE snapshot_id=? ORDER BY estacion_id,eta_seg",
         (snap["id"],),
     ).fetchall()
+    # desfase de cada llegada frente a su hora programada de paso (se ve al
+    # tocar la estación); el horario y los sentidos se cargan UNA vez por pasada
+    import datetime as dt
+    net = _net()
+    dia = dt.date.fromtimestamp(snap["ts"]).isoformat()
+    try:
+        prog = pasos._prog_dia(con, dia)
+        dudosos = pasos.incoherentes(con, net, dia)
+        sent = pasos.sentidos_inferidos(con, net, dia) if prog else {}
+    except sqlite3.OperationalError:
+        prog, dudosos, sent = {}, set(), {}
     por_est: dict[int, list] = {}
     for r in rows:
+        ret = None
+        if prog and r["eta_seg"] < salidas.HORIZONTE:   # "1 h" no tiene minutos
+            ret = pasos.retraso_arribada(
+                con, net, r["estacion_id"], r["linea"], r["destino"], snap["ts"] + r["eta_seg"],
+                sent.get((r["linea"], r["destino"])), prog, dudosos)
         por_est.setdefault(r["estacion_id"], []).append(
             {"linea": r["linea"], "destino": r["destino"],
-             "eta_seg": r["eta_seg"], "eta_txt": r["eta_txt"]}
+             "eta_seg": r["eta_seg"], "eta_txt": r["eta_txt"], "retraso": ret}
         )
     return {"ts": snap["ts"], "edad_seg": int(time.time()) - snap["ts"],
             "estaciones": por_est}
+
+
+_canc_cache: dict[tuple[int, str], tuple[float, dict]] = {}
+
+
+@app.get("/api/cancelats")
+def cancelats(estacio: int, dia: str | None = None):
+    """Trenes programados que NO han pasado por una estación en el día (regla:
+    ni a su hora ni antes de la hora del siguiente). Se mantienen todo el día."""
+    import datetime as dt
+    dia = dia or dt.date.today().isoformat()
+    try:
+        dt.date.fromisoformat(dia)
+    except ValueError:
+        return JSONResponse({"error": "dia inválido"}, status_code=400)
+    net = _net()
+    if estacio not in net.estaciones:
+        return JSONResponse({"error": "estación desconocida"}, status_code=400)
+    c = _canc_cache.get((estacio, dia))
+    if c and time.time() - c[0] < 60:
+        return c[1]
+    con = _con()
+    try:
+        lst = pasos.cancelados_estacion(con, net, estacio, dia)
+    except sqlite3.OperationalError:
+        lst = []
+    res = {"dia": dia, "estacio": estacio, "ahora": int(time.time()), "cancelats": lst}
+    for k in [k for k in _canc_cache if k[1] != dia]:
+        _canc_cache.pop(k, None)              # no acumular días pasados
+    _canc_cache[(estacio, dia)] = (time.time(), res)
+    return res
 
 
 def _noinfo(con, snap_id: int) -> list:

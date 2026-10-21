@@ -662,6 +662,7 @@ async function obrirPopupEstacio(m) {
     `<div class="pop-ruta"><button data-r="orig">Des d'ací</button><button data-r="dest">Fins ací</button></div>` +
     `<div class="pop-arr-tit">Pròximes arribades</div>` +
     `<div class="pop-arr">carregant…</div>` +
+    `<div class="pop-canc"></div>` +
     `<div class="pop-xat" data-tipus="estacio" data-lloc="${m.estId}" data-nom="${m.estNom}"></div>`;
   cont.querySelectorAll(".pop-ruta button").forEach((b) => b.onclick = () => {
     map.closePopup();
@@ -673,6 +674,17 @@ async function obrirPopupEstacio(m) {
   }
   pintarLlegadesPopup(cont.querySelector(".pop-arr"), m.estId);
   if (window.xatOmpliPopup) window.xatOmpliPopup(cont);
+  pintarCancelatsPopup(cont.querySelector(".pop-canc"), m.estId);
+}
+
+// desfase breu d'una arribada respecte a la seua hora programada de pas:
+// +2' (tard), −1' (avançat), · (a l'hora, |d| < 90 s) o res si no se sap
+function desfaseArribada(r) {
+  if (!r || r.retraso_s == null) return "";
+  const d = r.retraso_s, min = Math.round(Math.abs(d) / 60);
+  const [cls, txt] = Math.abs(d) < 90 ? ["hora", "·"]
+    : d > 0 ? [d >= 180 ? "tard" : "poc", `+${min}'`] : ["avanc", `−${min}'`];
+  return `<span class="ruta-desf arr-desf ${cls}" title="programat a les ${r.hora_prog}">${txt}</span>`;
 }
 
 function pintarLlegadesPopup(el, estId) {
@@ -685,9 +697,31 @@ function pintarLlegadesPopup(el, estId) {
     const cls = eta <= 30 ? "arr-eta imminent" : "arr-eta";
     return `<div class="arr-row">
       <span class="pop-linea" style="background:${c}">${NOMBRES_LINEA[a.linea] || "L" + a.linea}</span>
-      <span class="arr-dest">→ ${a.destino}</span>
+      <span class="arr-dest">→ ${a.destino}</span>${desfaseArribada(a.retraso)}
       <span class="${cls}" data-eta="${a.eta_seg}">${fmtEta(eta)}</span></div>`;
   }).join("");
+}
+
+// Trens programats que NO han passat per l'estació hui (ni a la seua hora ni
+// abans de l'hora del següent): el servidor els manté tot el dia. Caché 60 s.
+const cancelatsCache = new Map();   // id estació -> {ms, cancelats}
+async function pintarCancelatsPopup(el, estId) {
+  if (!el) return;
+  let c = cancelatsCache.get(estId);
+  if (!c || Date.now() - c.ms > 60000) {
+    try {
+      const j = await (await fetch(API + "api/cancelats?estacio=" + estId + "&_=" + Date.now(), { cache: "no-store" })).json();
+      c = { ms: Date.now(), cancelats: j.cancelats || [] };
+      cancelatsCache.set(estId, c);
+    } catch (e) { return; }
+  }
+  if (!el.isConnected || !c.cancelats.length) { if (el.isConnected) el.innerHTML = ""; return; }
+  el.innerHTML = `<div class="pop-arr-tit pop-canc-tit">Cancel·lats hui</div>` +
+    c.cancelats.map((x) => {
+      const chips = (x.lineas || []).map((l) =>
+        `<span class="pop-linea" style="background:#${colores[l] || "888"}">${NOMBRES_LINEA[l] || "L" + l}</span>`).join("");
+      return `<div class="canc-row"><span class="canc-hora">${x.hora}</span> · ${chips}<span class="canc-cap">cap a ${x.hacia}</span></div>`;
+    }).join("");
 }
 
 /* ---------- refresc ---------- */

@@ -487,6 +487,27 @@ def _prog_dia(con, dia: str) -> dict[tuple[int, int], list[int]]:
     return _prog_cache[dia]
 
 
+def _casar_slot(slots: list[int], real: int) -> tuple[int, int] | None:
+    """(ts_prog, retraso_s) de la hora programada más cercana a `real` entre
+    `slots` (ordenados), o None si está a más de VENTANA o si otra hora está
+    casi igual de cerca (MARGEN_AMBIG: tronco compartido, no se sabe cuál es)."""
+    import bisect
+    if not slots:
+        return None
+    i = bisect.bisect_left(slots, real)
+    cands = sorted(slots[max(0, i - 2):i + 2], key=lambda p: abs(real - p))
+    d = real - cands[0]
+    if abs(d) > VENTANA:
+        return None
+    if len(cands) > 1 and abs(real - cands[1]) < abs(d) + MARGEN_AMBIG:
+        return None
+    return cands[0], d
+
+
+def _hhmm(ts: int) -> str:
+    return dt.datetime.fromtimestamp(ts).strftime("%H:%M")
+
+
 def retraso_vivo(con, net, tren: dict, ts: int, max_paradas: int = 4) -> dict | None:
     """Retraso AHORA de un tren en vivo: su llegada prevista a las próximas
     paradas (ts + eta de los waypoints) frente a la hora programada de paso en
@@ -515,16 +536,107 @@ def retraso_vivo(con, net, tren: dict, ts: int, max_paradas: int = 4) -> dict | 
         slots = prog.get((sid, v)) if v is not None and (sid, v) not in dudosos else None
         if not slots:
             continue
-        real = ts + wp["eta"]
-        cands = sorted(slots, key=lambda p: abs(real - p))
-        d = real - cands[0]
-        if abs(d) > VENTANA:
+        r = _casar_slot(slots, ts + wp["eta"])
+        if r is None:
             continue
-        if len(cands) > 1 and abs(real - cands[1]) < abs(d) + MARGEN_AMBIG:
-            continue                  # tronco compartido: no se sabe cuál es
-        return {"retraso_s": d, "estacion": nom,
-                "hora_prog": dt.datetime.fromtimestamp(cands[0]).strftime("%H:%M")}
+        return {"retraso_s": r[1], "estacion": nom, "hora_prog": _hhmm(r[0])}
     return None
+
+
+def retraso_arribada(con, net, sid: int, linea: int, destino: str, ts_prev: int,
+                     sentido: int | None = None, prog: dict | None = None,
+                     dudosos: set | None = None) -> dict | None:
+    """Desfase de UNA llegada anunciada en la estación `sid`: el instante
+    previsto de paso (`ts_prev` = ts de la pasada + eta) frente a la hora
+    programada de paso por `sid` hacia su vecina en el sentido del destino.
+    {retraso_s, hora_prog} (+ tarde, − adelantado) o None si no hay horario,
+    el destino no fija sentido, el par es incoherente, está a más de VENTANA
+    o el casamiento es ambiguo (MARGEN_AMBIG). `prog`/`dudosos` se pueden
+    pasar ya calculados para no repetir la consulta por cada llegada."""
+    dia = dt.date.fromtimestamp(ts_prev).isoformat()
+    if prog is None:
+        prog = _prog_dia(con, dia)
+    if not prog:
+        return None
+    if dudosos is None:
+        dudosos = incoherentes(con, net, dia)
+    v = _vecina(net, linea, sid, destino, sentido)
+    if v is None or (sid, v) in dudosos:
+        return None
+    r = _casar_slot(prog.get((sid, v)) or [], ts_prev)
+    if r is None:
+        return None
+    return {"retraso_s": r[1], "hora_prog": _hhmm(r[0])}
+
+
+# -------------------------------------------------------- cancelados del día
+
+MARGEN_CANC = 60       # s: un paso hasta 1 min antes de su hora sigue siendo ese tren
+INTERVALO_FIN = 1200   # s: "siguiente" ficticio tras la última hora del día si no hay anterior
+
+
+def _lineas_del_par(net, sid: int, v: int) -> list[int]:
+    """Líneas comerciales en cuyo trazado `sid` y `v` son consecutivas."""
+    out = []
+    for lid, lc in sorted(net.comerciales.items()):
+        o = [s for _d, s in lc.orden]
+        if sid in o and v in o and abs(o.index(sid) - o.index(v)) == 1:
+            out.append(lid)
+    return out
+
+
+def cancelados_estacion(con, net, sid: int, dia: str, ahora: int | None = None) -> list[dict]:
+    """Trenes programados que NO han pasado por la estación `sid` en `dia`.
+
+    Regla (la del usuario): para cada vecina, con las horas programadas
+    P_1 < P_2 < ..., la P_i está cancelada si ningún paso real por la estación
+    hacia esa vecina cae en [P_i − MARGEN_CANC, P_{i+1}): el tren "no salió ni a
+    su hora ni antes que la hora del siguiente". Cada paso real cuenta una sola
+    vez (se casan por orden). Solo se juzga cuando ahora > P_{i+1} + MARGEN_CANC
+    y si la estación se leyó bien alrededor de esa ventana (sin lecturas no es
+    cancelado: es "sin datos"). Para la última hora del día, P_{n+1} = P_n +
+    el intervalo anterior (o INTERVALO_FIN)."""
+    from .salidas import HUECO_MAX, _cobertura, _cubierto
+    ahora = ahora or int(time.time())
+    t0, t1 = _rango_dia(dia)
+    prog = _prog_dia(con, dia)
+    pares_est = {k: v for k, v in prog.items() if k[0] == sid}
+    if not pares_est:
+        return []
+    sent = sentidos_inferidos(con, net, dia)
+    reales: dict[int, list[int]] = {}
+    for linea, destino, tp in con.execute(
+            "SELECT linea, destino, ts_salida FROM pasos_obs WHERE origen_id=? "
+            "AND estado='salida' AND ts_salida>=? AND ts_salida<?",
+            (sid, t0 - 3600, t1 + 3600)):
+        v = _vecina(net, linea, sid, destino, sent.get((linea, destino)))
+        if v is not None:
+            reales.setdefault(v, []).append(tp)
+    cob = _cobertura(con, sid, t0 - HUECO_MAX, t1 + HUECO_MAX)
+    out = []
+    for (_s, v), slots in pares_est.items():
+        obs = sorted(reales.get(v, []))
+        k = 0                                     # primer paso real aún sin casar
+        for i, p in enumerate(slots):
+            if i + 1 < len(slots):
+                sig = slots[i + 1]
+            else:
+                sig = p + (p - slots[i - 1] if i > 0 else INTERVALO_FIN)
+            ini = p - MARGEN_CANC
+            while k < len(obs) and obs[k] < ini:
+                k += 1                            # pasos anteriores a la ventana: no son este tren
+            if k < len(obs) and obs[k] < sig:
+                k += 1                            # este tren pasó (a su hora o antes del siguiente)
+                continue
+            if ahora <= sig + MARGEN_CANC:
+                continue                          # pendiente: aún puede pasar
+            if not (_cubierto(cob, p) and _cubierto(cob, sig)):
+                continue                          # sin lecturas: no se sabe, no es cancelado
+            out.append({"hora": _hhmm(p), "ts_prog": p, "hacia_id": v,
+                        "hacia": net.estaciones[v].nombre if v in net.estaciones else str(v),
+                        "lineas": _lineas_del_par(net, sid, v)})
+    out.sort(key=lambda f: (f["ts_prog"], f["hacia_id"]))
+    return out
 
 
 def resumen_lineas(filas: list[dict], desde: int | None = None) -> dict:

@@ -206,6 +206,38 @@ def test_arrivals(cliente, extracto):
     for lst in j["estaciones"].values():
         etas = [x["eta_seg"] for x in lst]
         assert etas == sorted(etas)
+        for x in lst:
+            assert "retraso" in x
+            assert x["retraso"] is None or set(x["retraso"]) == {"retraso_s", "hora_prog"}
+            if x["eta_seg"] >= 3600:
+                assert x["retraso"] is None          # "1 h" no tiene minutos
+            if x["retraso"] is not None:
+                assert abs(x["retraso"]["retraso_s"]) <= pasos.VENTANA
+    # con horario de paso del día hay desfases calculados para bastantes llegadas
+    con_ret = sum(x["retraso"] is not None for lst in j["estaciones"].values() for x in lst)
+    assert con_ret > 100, con_ret
+
+
+def test_cancelats(cliente, extracto, monkeypatch):
+    monkeypatch.setattr(api, "_canc_cache", {})
+    dia = extracto["meta"]["dia"]
+    r = cliente.get(f"/api/cancelats?estacio=67&dia={dia}", headers=LAN)
+    assert r.status_code == 200
+    j = r.json()
+    assert j["dia"] == dia and j["estacio"] == 67 and isinstance(j["cancelats"], list)
+    for c in j["cancelats"]:
+        assert set(c) == {"hora", "ts_prog", "hacia_id", "hacia", "lineas"}
+        assert isinstance(c["lineas"], list)
+    # sin día: hoy (sin horario cargado en la BD de prueba -> lista vacía, pero 200)
+    r = cliente.get("/api/cancelats?estacio=67", headers=LAN)
+    assert r.status_code == 200 and r.json()["estacio"] == 67 and r.json()["cancelats"] == []
+    assert r.json()["dia"] == dt.date.today().isoformat()
+    # cacheado 60 s por (estación, día)
+    assert cliente.get(f"/api/cancelats?estacio=67&dia={dia}", headers=LAN).json() == j
+    assert cliente.get("/api/cancelats?estacio=999999", headers=LAN).status_code == 400
+    assert cliente.get("/api/cancelats?estacio=67&dia=ahir", headers=LAN).status_code == 400
+    assert cliente.get("/api/cancelats", headers=LAN).status_code == 422
+    assert cliente.get("/api/cancelats?estacio=67", headers=FUERA).status_code == 403
 
 
 def test_retards_ruta_dia_real(cliente, extracto):
