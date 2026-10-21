@@ -276,6 +276,12 @@
     if (g && g.o && g.d) { $("ruta-orig").value = g.o; $("ruta-dest").value = g.d; calcula(true); }
   };
 
+  // obri un panell sense alternar-lo (el xat el crida des dels popups)
+  window.obriPanell = function (id, nomesObrir) {
+    if (nomesObrir && !$(id).hidden) return;
+    obri(id);
+  };
+
   window.refrescaPanells = function () {
     if (ruta) calcula(true);                         // trens de la ruta al dia
     if (!$("panel-retards").hidden) carregaRetards();

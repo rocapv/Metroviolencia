@@ -300,3 +300,70 @@ def test_frontend_estatico(cliente):
     assert "<html" in r.text.lower()
     assert "no-store" in r.headers["cache-control"]
     assert cliente.get("/", headers=FUERA).status_code == 403
+
+
+# ------------------------------------------------------------------ xat
+
+@pytest.fixture
+def xat_net(monkeypatch):
+    from backend import xat
+    monkeypatch.setattr(xat, "_ultims", {})      # tasa por IP limpia en cada test
+    return xat
+
+
+def test_xat_publica_desde_estacion_y_lo_sirve(cliente, xat_net):
+    r = cliente.post("/api/xat", json={"tipus": "estacio", "lloc": 67, "alias": "  Roca ",
+                                       "text": "  Hola   des de <b>Benimaclet</b>  "}, headers=LAN)
+    assert r.status_code == 200, r.text
+    m = r.json()
+    assert m["tipus"] == "estacio" and m["lloc"] == 67 and m["nom_lloc"] == "Benimaclet"
+    assert m["alias"] == "Roca" and m["text"] == "Hola des de <b>Benimaclet</b>"   # espacios plegados, sin tocar el texto
+    j = cliente.get("/api/xat?tipus=estacio&lloc=67", headers=LAN).json()
+    assert [x["id"] for x in j["missatges"]] == [m["id"]]
+    feed = cliente.get("/api/xat?des_de=0", headers=LAN).json()
+    assert feed["ultim_id"] == m["id"] and feed["missatges"][-1]["id"] == m["id"]
+    assert cliente.get("/api/xat?des_de=%d" % m["id"], headers=LAN).json()["missatges"] == []
+    assert cliente.get("/api/ultimo", headers=LAN).json()["xat_id"] == m["id"]
+
+
+def test_xat_desde_tren_vivo_y_tren_muerto(cliente, extracto, xat_net):
+    vivo = [t for t in extracto["trenes"] if t["snapshot_id"] == 31114][0]
+    r = cliente.post("/api/xat", json={"tipus": "tren", "lloc": vivo["track_id"], "text": "vaig ací"},
+                     headers=LAN)
+    assert r.status_code == 200, r.text
+    m = r.json()
+    assert m["linea"] == vivo["linea"] and m["desti"] == vivo["destino"]
+    assert m["nom_lloc"] == "L%d → %s" % (vivo["linea"], vivo["destino"])
+    xat_net._ultims.clear()
+    r = cliente.post("/api/xat", json={"tipus": "tren", "lloc": 999999999, "text": "fantasma"}, headers=LAN)
+    assert r.status_code == 400 and "circulaci" in r.json()["error"]
+
+
+@pytest.mark.parametrize("body", [
+    {"tipus": "estacio", "lloc": 67, "text": "   "},            # vacío
+    {"tipus": "estacio", "lloc": 123456, "text": "hola"},       # estación desconocida
+    {"tipus": "cotxe", "lloc": 1, "text": "hola"},              # tipo inválido
+    {"tipus": "estacio", "lloc": "x", "text": "hola"},          # lloc no numérico
+])
+def test_xat_rechaza_mensajes_invalidos(cliente, xat_net, body):
+    assert cliente.post("/api/xat", json=body, headers=LAN).status_code == 400
+
+
+def test_xat_limita_la_tasa_por_ip(cliente, xat_net):
+    assert cliente.post("/api/xat", json={"tipus": "estacio", "lloc": 67, "text": "u"}, headers=LAN).status_code == 200
+    r = cliente.post("/api/xat", json={"tipus": "estacio", "lloc": 67, "text": "dos"}, headers=LAN)
+    assert r.status_code == 429 and "espera" in r.json()["error"]
+    # otra IP no está limitada
+    assert cliente.post("/api/xat", json={"tipus": "estacio", "lloc": 67, "text": "tres"},
+                        headers={"X-Forwarded-For": "192.168.1.51"}).status_code == 200
+
+
+def test_xat_recorta_texto_y_alias(cliente, xat_net):
+    r = cliente.post("/api/xat", json={"tipus": "estacio", "lloc": 67, "alias": "a" * 50, "text": "x" * 500},
+                     headers=LAN)
+    assert r.status_code == 200
+    assert len(r.json()["text"]) == 200 and len(r.json()["alias"]) == 24
+
+
+def test_xat_fuera_de_la_lan_sin_token_es_403(cliente, xat_net):
+    assert cliente.post("/api/xat", json={"tipus": "estacio", "lloc": 67, "text": "hola"}, headers=FUERA).status_code == 403

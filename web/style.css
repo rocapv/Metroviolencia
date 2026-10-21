@@ -298,3 +298,41 @@ html, body {
 .ret-lin small { color: var(--muted); width: 100%; font-size: 11px; }
 .ret-lin small b { color: #f59e0b; }
 .llegenda-retard { margin-top: 8px; font-size: 11px; color: var(--muted); }
+
+/* xat */
+.xat-lloc { margin-bottom: 8px; line-height: 1.4; }
+.xat-muted { color: var(--muted); font-size: 12px; }
+.xat-mini { padding: 0 7px !important; font-size: 13px !important; margin-left: 4px; }
+.xat-acc { display: grid; grid-template-columns: auto 1fr; gap: 6px; align-items: center; }
+.xat-acc input, .xat-form input, .xat-form textarea {
+  font: inherit; font-size: 13px; color: var(--txt); background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 6px 8px; min-width: 0; width: 100%;
+}
+.xat-form textarea { resize: vertical; }
+#xat-candidats { margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+.xat-cand { text-align: left; display: flex; align-items: center; gap: 6px; }
+.xat-cand .xat-muted { margin-left: auto; }
+.xat-cand.segur { border-color: var(--viol); }
+.xat-form { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-top: 10px; }
+.xat-form textarea { grid-column: 1 / span 2; }
+.xat-avis { color: #f87171; font-size: 12px; min-height: 16px; margin: 4px 0; }
+.xat-avis.suau { color: var(--muted); }
+#xat-feed { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
+.xat-msg { border-left: 2px solid rgba(255, 255, 255, 0.15); padding: 2px 0 2px 8px; font-size: 12px; }
+.xat-hora { color: var(--muted); font-variant-numeric: tabular-nums; }
+.xat-on-chip { color: var(--muted); }
+.xat-txt { color: var(--txt); font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+.pop-xat { margin-top: 8px; }
+.pop-xat-llista { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.pop-xat-btn {
+  font: inherit; font-size: 12px; color: var(--txt); background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; padding: 4px 9px; cursor: pointer;
+}
+/* bombolla d'un missatge acabat d'arribar (5 s damunt del tren/estació) */
+.leaflet-tooltip.xat-bombolla {
+  background: #1b1b26; color: #fff; border: 1px solid var(--viol); border-radius: 10px;
+  padding: 5px 9px; font-size: 12px; max-width: 220px; white-space: normal; word-break: break-word;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); animation: xat-apareix 0.25s ease-out;
+}
+.leaflet-tooltip.xat-bombolla::before { border-top-color: var(--viol); }
+@keyframes xat-apareix { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

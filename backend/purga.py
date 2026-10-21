@@ -29,7 +29,7 @@ import sqlite3
 import time
 from pathlib import Path
 
-from . import pasos
+from . import pasos, xat
 
 RETENER_ARRIVALS = 14   # días
 RETENER_TRENES = 3      # días
@@ -124,6 +124,10 @@ def purgar(con: sqlite3.Connection, log=print) -> dict:
         res["pasos_obs"] = _resumir_y_purgar_pasos(con, log)
     except Exception as e:  # noqa: BLE001 - que no tumbe el resto de la purga
         log(f"  purga pasos_obs: error {e}")
+    try:
+        res["xat"] = xat.purgar(con)      # mensajes de más de RETENER_DIES días
+    except Exception as e:  # noqa: BLE001
+        log(f"  purga xat: error {e}")
     if con.execute("PRAGMA auto_vacuum").fetchone()[0] == 2:     # INCREMENTAL
         libres = con.execute("PRAGMA freelist_count").fetchone()[0]
         con.execute(f"PRAGMA incremental_vacuum({min(libres, PAGINAS_VACUUM)})")

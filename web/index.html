@@ -34,6 +34,7 @@
   <nav id="menu">
     <button id="btn-ruta" data-panel="panel-ruta">Ruta</button>
     <button id="btn-retards" data-panel="panel-retards">Retards</button>
+    <button id="btn-xat" data-panel="panel-xat">Xat</button>
   </nav>
 
   <section id="panel-ruta" class="panel" hidden>
@@ -66,10 +67,30 @@
     <a class="ret-link" href="registre.html">Registre complet del dia →</a>
   </section>
 
+  <!-- xat: des del tren en què vas (triat per proximitat, calculada al mòbil) o des d'una estació -->
+  <section id="panel-xat" class="panel" hidden>
+    <div class="panel-cap"><b>Xat de la xarxa</b><button class="panel-tanca" aria-label="Tanca">×</button></div>
+    <div id="xat-lloc" class="xat-lloc"></div>
+    <div class="xat-acc">
+      <button id="xat-ubicacio" class="primari" title="Usa la ubicació del mòbil per a trobar el tren en què vas. La posició no s'envia a cap servidor.">Vaig en un tren (ubicació)</button>
+      <input id="xat-est" list="ruta-est" placeholder="…o des d'una estació" autocomplete="off">
+    </div>
+    <div id="xat-candidats"></div>
+    <div class="xat-form">
+      <input id="xat-alias" maxlength="24" placeholder="àlies (opcional)" autocomplete="off">
+      <textarea id="xat-text" maxlength="200" rows="2" placeholder="Escriu un missatge (el veu tota la xarxa)"></textarea>
+      <button id="xat-envia" class="primari">Envia</button>
+    </div>
+    <div id="xat-avis" class="xat-avis"></div>
+    <div class="pop-arr-tit">Últims missatges de la xarxa</div>
+    <div id="xat-feed"></div>
+  </section>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
   <script src="app.js?v=20261007b"></script>
   <script src="panells.js"></script>
+  <script src="xat.js"></script>
 </body>
 </html>

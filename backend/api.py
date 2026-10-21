@@ -8,6 +8,9 @@ Endpoints:
     GET /api/ruta      -> ruta origen->destino y trenes en vivo a coger (?origen=&destino=)
     GET /api/retards_ruta -> retrasos al pasar por cada estación (?dia=YYYY-MM-DD)
     GET /api/registro  -> salidas programadas vs reales de un día (?dia=YYYY-MM-DD)
+    GET /api/ultimo    -> marca de la última pasada servida (+ último id del xat)
+    GET /api/xat       -> mensajes: ?tipus=&lloc= (los de un lugar) o ?des_de=ID (feed)
+    POST /api/xat      -> publica un mensaje {tipus, lloc, alias, text}
     GET /api/health    -> estado
 
 Sirve además el frontend estático de ../web en la raíz.
@@ -24,7 +27,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import pasos, rutas, salidas
+from . import pasos, rutas, salidas, xat
 from .calendario import tipo as tipo_dia
 from .network import load_network
 from .positions import estimar
@@ -181,10 +184,43 @@ def ultimo():
             "SELECT snapshot_id, ts FROM trenes ORDER BY snapshot_id DESC LIMIT 1").fetchone()
     except sqlite3.OperationalError:
         row = None
+    xid = xat.ultim_id(con)
     if row is None:
-        return {"ts": None, "ts_fin": None, "srv_ms": int(time.time() * 1000)}
+        return {"ts": None, "ts_fin": None, "srv_ms": int(time.time() * 1000), "xat_id": xid}
     return {"ts": row["ts"], "ts_fin": _ts_fin(con, row["snapshot_id"]),
-            "srv_ms": int(time.time() * 1000)}
+            "srv_ms": int(time.time() * 1000), "xat_id": xid}
+
+
+@app.get("/api/xat")
+def xat_get(tipus: str | None = None, lloc: int | None = None, des_de: int | None = None,
+            n: int = 20):
+    """Mensajes del xat: de un lugar (?tipus=tren|estacio&lloc=ID) o el feed
+    general (?des_de=ID -> los posteriores a ese id; des_de=0 -> los últimos)."""
+    con = _con()
+    n = max(1, min(int(n), xat.MAX_FEED))
+    if tipus is not None and lloc is not None:
+        if tipus not in ("tren", "estacio"):
+            return JSONResponse({"error": "tipus invàlid"}, status_code=400)
+        return {"tipus": tipus, "lloc": lloc, "missatges": xat.del_lloc(con, tipus, lloc, n)}
+    return {"des_de": des_de or 0, "ultim_id": xat.ultim_id(con),
+            "missatges": xat.des_de(con, des_de or 0, n)}
+
+
+@app.post("/api/xat")
+async def xat_post(request: Request):
+    """Publica un mensaje desde un tren (track_id vivo) o una estación."""
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        return JSONResponse({"error": "JSON invàlid"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "JSON invàlid"}, status_code=400)
+    con = _con()
+    msg, err = xat.publicar(con, _net(), _client_ip(request), str(body.get("tipus", "")),
+                            body.get("lloc"), str(body.get("alias", "")), str(body.get("text", "")))
+    if msg is None:
+        return JSONResponse({"error": err}, status_code=429 if "espera" in err or "massa" in err else 400)
+    return msg
 
 
 @app.get("/api/trains")

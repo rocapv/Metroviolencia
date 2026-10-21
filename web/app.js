@@ -40,6 +40,7 @@ if (window.maplibregl && L.maplibreGL && teWebGL()) {
 const lineasVisibles = new Set();
 const trenLayer = L.layerGroup().addTo(map);
 const marcadores = new Map();      // clau -> {marker, tren}
+const marcadorsEstacio = new Map(); // id estació -> circleMarker (bombolles del xat)
 let colores = {};                  // color per línia comercial
 let comerciales = {};              // {lid: {path, cum, length}}
 let ultimoTrenes = [];
@@ -243,6 +244,7 @@ async function cargarRed() {
       { direction: "top", opacity: 0.9 });
     m.estId = e.id; m.estNom = e.nombre; m.estLineas = e.lineas;
     m.on("click", () => obrirPopupEstacio(m));
+    marcadorsEstacio.set(e.id, m);
   }
 
   dibuixarCierres(net.cierres || [], porNom);
@@ -444,8 +446,10 @@ function pintarTrenes(trenes) {
       // NO reposicionem ací: animar() suavitza la posició (e.dViz) cada frame,
       // així no es produeix cap salt al refrescar (ni cap avant ni cap arrere).
       best.marker.setPopupContent(popupTren(t));
+      if (best.marker.isPopupOpen() && window.xatOmpliPopup) window.xatOmpliPopup(best.marker.getPopup().getElement());
     } else {
       const marker = L.marker(ll, { icon: iconoTren(t) }).bindPopup(popupTren(t));
+      marker.on("popupopen", (ev) => { if (window.xatOmpliPopup) window.xatOmpliPopup(ev.popup.getElement()); });
       marker.addTo(trenLayer);
       nuevos.push({ marker, tren: t, usado: true, kRet: classeRetard(t) });
     }
@@ -520,7 +524,8 @@ function popupTren(t) {
   return `<span class="pop-linea" style="background:${c}">${NOMBRES_LINEA[t.linea] || "L" + t.linea}</span>
     → <b>${t.destino}</b>${idTxt}${espera}<br>
     <span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>` +
-    retardTren(t);
+    retardTren(t) +
+    (t.id != null ? `<div class="pop-xat" data-tipus="tren" data-lloc="${t.id}" data-nom="${NOMBRES_LINEA[t.linea] || "L" + t.linea} → ${t.destino}"></div>` : "");
 }
 
 // retard ara mateix respecte a l'horari de pas (calculat al servidor)
@@ -656,7 +661,8 @@ async function obrirPopupEstacio(m) {
     `<div class="pop-est-lin">${chips}</div>` +
     `<div class="pop-ruta"><button data-r="orig">Des d'ací</button><button data-r="dest">Fins ací</button></div>` +
     `<div class="pop-arr-tit">Pròximes arribades</div>` +
-    `<div class="pop-arr">carregant…</div>`;
+    `<div class="pop-arr">carregant…</div>` +
+    `<div class="pop-xat" data-tipus="estacio" data-lloc="${m.estId}" data-nom="${m.estNom}"></div>`;
   cont.querySelectorAll(".pop-ruta button").forEach((b) => b.onclick = () => {
     map.closePopup();
     if (window.rutaFixa) window.rutaFixa(b.dataset.r, m.estNom);
@@ -666,6 +672,7 @@ async function obrirPopupEstacio(m) {
     try { arrivalsCache = await (await fetch(API + "api/arrivals?_=" + Date.now(), { cache: "no-store" })).json(); } catch (e) {}
   }
   pintarLlegadesPopup(cont.querySelector(".pop-arr"), m.estId);
+  if (window.xatOmpliPopup) window.xatOmpliPopup(cont);
 }
 
 function pintarLlegadesPopup(el, estId) {
@@ -764,8 +771,14 @@ async function vigilaServidor() {
     const j = await (await fetch(API + "api/ultimo?_=" + Date.now(), { cache: "no-store" })).json();
     const marca = j.ts_fin || j.ts || 0;
     if (marca > (ultimoTsFin || ultimoTs)) refrescar();
+    if (window.xatNovetats) window.xatNovetats(j.xat_id || 0);
   } catch (e) { /* sense xarxa: el refresc de seguretat ja ho dirà */ }
 }
+
+// per al xat (xat.js): trens vius amb la seua posició en pantalla, i marcadors per id
+window.trensVius = () => [...marcadores.values()].map((e) => ({ t: e.tren, ll: e.marker.getLatLng() }));
+window.marcadorTren = (id) => { for (const e of marcadores.values()) if (e.tren.id === id) return e.marker; return null; };
+window.marcadorEstacio = (id) => marcadorsEstacio.get(Number(id)) || null;
 
 function tickSegon() {
   document.getElementById("reloj-hora").textContent = new Date().toLocaleTimeString("ca-ES");
@@ -802,6 +815,7 @@ function tickSegon() {
 (async function main() {
   await cargarRed();
   if (window.iniciaPanells) window.iniciaPanells();
+  if (window.iniciaXat) window.iniciaXat();
   await refrescar();
   setInterval(refrescar, REFRESH_MS);
   setInterval(vigilaServidor, VIGILA_MS);
