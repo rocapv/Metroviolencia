@@ -16,6 +16,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "tram_tracks.json"
+# Variantes por relación OSM (ramales): { "4": { "<rel_id>": [tramos...] } }. Cada
+# relación es una ruta completa (p. ej. Ll. Llarga -> Dr. Lluch), sin deduplicar
+# entre relaciones: network.py construye con ellas una línea comercial por ramal.
+OUT_VARIANTES = ROOT / "data" / "tram_tracks_variants.json"
 
 # Relaciones de ruta OSM por línea. IMPORTANTE: una sola dirección por línea
 # (si se mezclan sentidos, OSM traza los dos raíles paralelos = "varios carriles").
@@ -57,23 +61,32 @@ def query(rel_ids: list[int]) -> dict:
 def main() -> int:
     data = query(RELACIONES)
     tracks: dict[str, list] = collections.defaultdict(list)
+    variantes: dict[str, dict[str, list]] = collections.defaultdict(dict)
     vistos: dict[str, set] = collections.defaultdict(set)  # ref -> way ids
     for rel in data["elements"]:
         if rel["type"] != "relation":
             continue
         ref = rel["tags"].get("ref")
+        propias: list = []
         for m in rel.get("members", []):
             if m["type"] != "way" or "geometry" not in m:
                 continue
+            poly = [[round(p["lat"], 6), round(p["lon"], 6)] for p in m["geometry"]]
+            if len(poly) >= 2:
+                propias.append(poly)
             wid = m.get("ref")
             if wid in vistos[ref]:      # dedup por ID de vía (tronco compartido)
                 continue
             vistos[ref].add(wid)
-            poly = [[round(p["lat"], 6), round(p["lon"], 6)] for p in m["geometry"]]
             if len(poly) >= 2:
                 tracks[ref].append(poly)
+        variantes[ref][str(rel["id"])] = propias
     OUT.write_text(json.dumps(tracks, ensure_ascii=False), encoding="utf-8")
+    # solo las líneas con más de una relación tienen ramales
+    OUT_VARIANTES.write_text(json.dumps(
+        {ref: v for ref, v in variantes.items() if len(v) > 1}, ensure_ascii=False), encoding="utf-8")
     print({k: f"{len(v)} tramos" for k, v in sorted(tracks.items())})
+    print("variantes:", {k: {r: len(w) for r, w in v.items()} for k, v in variantes.items() if len(v) > 1})
     return 0
 
 

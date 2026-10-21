@@ -212,6 +212,10 @@ def init_db() -> sqlite3.Connection:
         con.execute("ALTER TABLE snapshots ADD COLUMN ts_fin INTEGER")
     except sqlite3.OperationalError:
         pass
+    try:   # bases anteriores a `via` (variante de ramal que da la geometría del tren)
+        con.execute("ALTER TABLE trenes ADD COLUMN via INTEGER")
+    except sqlite3.OperationalError:
+        pass
     con.executescript(SCHEMA)
     con.commit()
     horarios.init_db(con)
@@ -322,25 +326,26 @@ def track_snapshot(con: sqlite3.Connection, net, snap_id: int, ts: int, rows: li
         psnap, pts = prev_row[0], prev_row[1]
         dt = float(ts - pts)
         for r in con.execute(
-            "SELECT track_id,linea,destino,waypoints FROM trenes WHERE snapshot_id=?",
+            "SELECT track_id,linea,destino,waypoints,via FROM trenes WHERE snapshot_id=?",
             (psnap,),
         ):
             prev.append({"track_id": r[0], "linea": r[1], "destino": r[2],
-                         "waypoints": json.loads(r[3])})
+                         "waypoints": json.loads(r[3]), "via": r[4] or r[1]})
     next_id = con.execute(
         "SELECT COALESCE(MAX(track_id),0)+1 FROM trenes"
     ).fetchone()[0]
 
-    ids, _ = track(curr, prev, dt, next_id)
+    vias = {k: (lc.variante_de, lc.d_union) for k, lc in net.comerciales.items() if lc.variante_de}
+    ids, _ = track(curr, prev, dt, next_id, vias=vias)
     filas = []
     for i, t in enumerate(curr):
         d0 = t.waypoints[0]["d"] if t.waypoints else None
         filas.append((snap_id, ts, ids[i], t.linea, t.destino, t.color, t.lat, t.lng,
                       t.prox_estacion, t.eta_seg, 1 if t.origen else 0, d0,
-                      json.dumps(t.waypoints)))
+                      json.dumps(t.waypoints), t.via or t.linea))
     con.executemany(
         "INSERT INTO trenes(snapshot_id,ts,track_id,linea,destino,color,lat,lng,"
-        "prox_estacion,eta_seg,origen,d,waypoints) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "prox_estacion,eta_seg,origen,d,waypoints,via) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         filas,
     )
     con.commit()

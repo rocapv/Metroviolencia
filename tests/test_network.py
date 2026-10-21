@@ -28,8 +28,12 @@ def test_load_network_cacheada(net):
     assert load_network() is net
 
 
+def _principales(net):
+    return sorted(k for k, lc in net.comerciales.items() if lc.variante_de is None)
+
+
 def test_lineas_comerciales_1_a_10(net):
-    assert sorted(net.comerciales) == LINEAS_COMERCIALES
+    assert _principales(net) == LINEAS_COMERCIALES
     for lid, lc in net.comerciales.items():
         assert lc.id == lid
         assert lc.orden, f"L{lid} sin orden de estaciones"
@@ -41,8 +45,9 @@ def test_lineas_comerciales_1_a_10(net):
         assert len(ids) == len(set(ids)), f"L{lid}: estación repetida"
         assert set(ids) == lc.estaciones
         assert all(s in net.estaciones for s in ids)
-        assert all(lid in net.estaciones[s].lineas for s in ids)
-        assert lc.color == net.colores_comercial[str(lid)]
+        base = lc.variante_de or lid      # una variante de ramal sirve a su línea
+        assert all(base in net.estaciones[s].lineas for s in ids)
+        assert lc.color == net.colores_comercial[str(base)]
 
 
 def test_tranvias_sobre_trazado_osm(net):
@@ -113,7 +118,8 @@ def test_cabeceras_existen_en_la_red(net):
         assert c["id"] in net.estaciones, c
         assert net.estaciones[c["id"]].nombre == c["nombre"]
         for lid in c["lineas"]:
-            assert c["id"] in net.comerciales[lid].estaciones, c
+            # la cabecera puede estar en la principal o en una variante de ramal (Ll. Llarga)
+            assert any(c["id"] in net.comerciales[v].estaciones for v in net.vias_de(lid)), c
 
 
 def test_estaciones_retorno(net):
@@ -173,7 +179,8 @@ def test_to_geojson_meta(net):
                          "tram_tracks_extra", "metro_segs", "comerciales", "lineas",
                          "estaciones"}
     assert len(meta["estaciones"]) == 144
-    assert sorted(int(k) for k in meta["comerciales"]) == LINEAS_COMERCIALES
+    assert sorted(int(k) for k, c in meta["comerciales"].items()
+                  if c["variante_de"] is None) == LINEAS_COMERCIALES
     for k, c in meta["comerciales"].items():
         assert len(c["path"]) == len(c["cum"]) >= 2
         assert c["estaciones"] and all({"id", "d"} <= set(e) for e in c["estaciones"])
@@ -189,3 +196,59 @@ def test_conectores_no_tocan_tranvias(net):
     for c in net.conectores():
         assert c["linea"] not in TRANVIAS
         assert len(c["path"]) == 2
+
+
+# ------------------------------------------------------------ ramales (L4)
+
+def _metros(a, b):
+    import math
+    return math.hypot((a[0] - b[0]) * 111000, (a[1] - b[1]) * 85000)
+
+
+def test_l4_tiene_variantes_por_ramal(net):
+    """La cadena OSM fusionada de L4 es una sola polyline: los ramales de Fira
+    València y de Ll. Llarga - Terramelar van como variantes 41/42, que
+    comparten el tronco (mismas d) con la principal."""
+    assert net.vias_de(4) == [4, 41, 42]
+    assert net.vias_de(1) == [1]
+    for v in (41, 42):
+        lc = net.comerciales[v]
+        assert lc.variante_de == 4 and lc.color == net.comerciales[4].color
+        assert 0 < lc.d_inicio < lc.d_union < lc.length
+        assert lc.length == net.comerciales[4].length
+        assert lc.cum == sorted(lc.cum)
+        assert len(lc.latlng) == len(lc.cum)
+    nombres = lambda v: [net.estaciones[s].nombre for _d, s in net.comerciales[v].orden]  # noqa: E731
+    assert nombres(41)[0] == "Fira València" and nombres(42)[0] == "Ll. Llarga - Terramelar"
+    assert nombres(41)[-1] == nombres(42)[-1] == nombres(4)[-1] == "Dr. Lluch"
+    # las del ramal ya no están en la principal (se proyectaban a 600 m de su sitio)
+    assert net.id_por_nombre("Ll. Llarga - Terramelar") not in net.comerciales[4].estaciones
+    assert net.id_por_nombre("Fira València") not in net.comerciales[4].estaciones
+    assert net.id_por_nombre("Mas del Rosari") in net.comerciales[4].estaciones
+
+
+def test_estaciones_de_ramal_caen_sobre_su_estacion(net):
+    for v, nombre in ((42, "Ll. Llarga - Terramelar"), (41, "Fira València")):
+        lc = net.comerciales[v]
+        sid = net.id_por_nombre(nombre)
+        d = lc.station_dist(sid)
+        e = net.estaciones[sid]
+        assert d is not None and d < lc.d_union
+        assert _metros(lc.dist_to_latlng(d), (e.lat, e.lng)) < 30
+
+
+def test_tronco_comparte_d_entre_principal_y_variantes(net):
+    main = net.comerciales[4]
+    for v in (41, 42):
+        lc = net.comerciales[v]
+        for nombre in ("Empalme", "Benimaclet", "Dr. Lluch", "Cabanyal"):
+            s = net.id_por_nombre(nombre)
+            assert lc.station_dist(s) == main.station_dist(s), nombre
+        # y la misma geometría en el tronco
+        d = main.station_dist(net.id_por_nombre("Benimaclet"))
+        assert _metros(lc.dist_to_latlng(d), main.dist_to_latlng(d)) < 1
+
+
+def test_variante_no_extrapola_por_debajo_de_su_inicio(net):
+    lc = net.comerciales[42]
+    assert lc.dist_to_latlng(0) == lc.dist_to_latlng(lc.d_inicio)

@@ -22,6 +22,10 @@ SERVICE_JSON = ROOT / "data" / "service.json"
 # (railway=tram). Metrovalencia no da polylines limpias de tranvía. Generado con
 # scripts/fetch_tram_tracks.py.
 TRAM_TRACKS_JSON = ROOT / "data" / "tram_tracks.json"
+# Ramales: una ruta OSM completa por variante (p. ej. L4 Ll. Llarga -> Dr. Lluch).
+# Con ellas se construye una línea comercial por ramal (ver _build_variantes).
+TRAM_VARIANTS_JSON = ROOT / "data" / "tram_tracks_variants.json"
+VARIANTE_MAX_PERP = 80.0   # m: una estación es de la variante si está a menos de esto de su vía
 
 _R = 6371000.0  # radio terrestre m
 _LAT0 = math.radians(39.47)  # latitud de referencia (Valencia) para el coseno
@@ -156,10 +160,19 @@ class LineaComercial:
     cum: list[float]
     orden: list[tuple[float, int]]  # (dist_along, station_id) ordenado
     estaciones: set[int]
+    # Variante de ramal: comparte el tronco (mismas coordenadas d) con la línea
+    # `variante_de` y la sustituye en el tramo d < d_union por la vía del ramal.
+    # Su `cum` empieza en d_union - longitud_del_ramal (> 0), no en 0.
+    variante_de: int | None = None
+    d_union: float = 0.0
 
     @property
     def length(self) -> float:
         return self.cum[-1] if self.cum else 0.0
+
+    @property
+    def d_inicio(self) -> float:
+        return self.cum[0] if self.cum else 0.0
 
     def station_dist(self, sid: int) -> float | None:
         for d, s in self.orden:
@@ -168,7 +181,7 @@ class LineaComercial:
         return None
 
     def dist_to_latlng(self, d: float) -> tuple[float, float]:
-        d = max(0.0, min(self.length, d))
+        d = max(self.d_inicio, min(self.length, d))
         lo, hi = 0, len(self.cum) - 1
         while lo < hi:
             mid = (lo + hi) // 2
@@ -284,6 +297,7 @@ class Network:
                         orden=orden,
                         estaciones=set(sids),
                     )
+                    self._build_variantes(lid, self.comerciales[lid], sids, pts_xy)
                     continue
             # METRO: elegir polyline con más estaciones a <80 m
             mejor, mejor_n = None, -1
@@ -306,6 +320,80 @@ class Network:
                 orden=orden,
                 estaciones=set(sids),
             )
+
+    def _build_variantes(self, lid: int, main: "LineaComercial", sids: list[int], main_xy: list) -> None:
+        """Una línea comercial por RAMAL de la línea `lid` (claves lid*10+n, p. ej.
+        41/42 para L4). La cadena fusionada de OSM es una sola polyline y deja
+        fuera los ramales: sus estaciones (Ll. Llarga - Terramelar, Fira València)
+        se proyectaban sobre el tronco a 600 m de donde están. Cada variante =
+        vía del ramal hasta la unión + el tronco a partir de ahí, con las MISMAS
+        d que el tronco (así un tren que sale del ramal al tronco no salta).
+        Las estaciones del tronco se heredan de la principal tal cual; las del
+        ramal son las que están lejos del tronco y cerca de la vía del ramal."""
+        import bisect
+        variantes = self.tram_variants().get(str(lid)) or {}
+        if len(variantes) < 2:
+            return
+        fin_xy = _xy(*main.latlng[-1])
+        perp_main = {s: _proj_on_poly(self._xy_of(s), main_xy, main.cum)[1] for s in sids}
+        candidatas = []
+        for rel in sorted(variantes):
+            merged = _merge_ways(variantes[rel])
+            if len(merged) < 2:
+                continue
+            pts = [(p[0], p[1]) for p in merged]
+            # todas las variantes orientadas hacia el final del tronco
+            if _dist(_xy(*pts[0]), fin_xy) < _dist(_xy(*pts[-1]), fin_xy):
+                pts.reverse()
+            xy = [_xy(a, b) for a, b in pts]
+            cum = [0.0]
+            for i in range(1, len(xy)):
+                cum.append(cum[-1] + _dist(xy[i - 1], xy[i]))
+            # unión: primer punto de la variante encima del tronco
+            j = next((i for i, p in enumerate(xy) if _proj_on_poly(p, main_xy, main.cum)[1] < 12), None)
+            if j is None or cum[j] < 150:
+                continue          # no se une, o es la propia ruta troncal
+            d_union = _proj_on_poly(xy[j], main_xy, main.cum)[0]
+            if d_union - cum[j] < 0:
+                continue          # ramal más largo que el tronco anterior: no soportado
+            k = bisect.bisect_right(main.cum, d_union)
+            latlng = pts[:j] + [main.dist_to_latlng(d_union)] + list(main.latlng[k:])
+            vcum = [d_union - (cum[j] - cum[i]) for i in range(j)] + [d_union] + list(main.cum[k:])
+            ramal_xy = [_xy(a, b) for a, b in latlng[:j + 1]]
+            ramal = {}
+            for s in sids:
+                if perp_main[s] < VARIANTE_MAX_PERP:
+                    continue      # está sobre el tronco: no es del ramal
+                d, dp = _proj_on_poly(self._xy_of(s), ramal_xy, vcum[:j + 1])
+                if dp < VARIANTE_MAX_PERP:
+                    ramal[s] = d
+            if ramal:
+                candidatas.append((rel, latlng, vcum, d_union, ramal))
+        if not candidatas:
+            return
+        en_ramal = set().union(*(c[4] for c in candidatas))
+        main.orden = [(d, s) for d, s in main.orden if s not in en_ramal]
+        main.estaciones = set(main.estaciones) - en_ramal
+        for n, (rel, latlng, vcum, d_union, ramal) in enumerate(candidatas, 1):
+            orden = sorted(ramal.items(), key=lambda kv: kv[1])
+            orden = [(d, s) for s, d in orden] + [(d, s) for d, s in main.orden if d >= d_union - 1]
+            self.comerciales[lid * 10 + n] = LineaComercial(
+                id=lid * 10 + n, color=main.color, seg=f"tram:{lid}:{rel}",
+                latlng=latlng, cum=vcum, orden=orden, estaciones={s for _d, s in orden},
+                variante_de=lid, d_union=d_union)
+
+    def vias_de(self, lid: int) -> list[int]:
+        """Claves de las líneas comerciales que sirven la línea `lid`: la
+        principal y sus variantes de ramal, si las hay."""
+        return [lid] + sorted(k for k, lc in self.comerciales.items() if lc.variante_de == lid)
+
+    def tram_variants(self) -> dict[str, dict[str, list]]:
+        if not TRAM_VARIANTS_JSON.exists():
+            return {}
+        try:
+            return json.loads(TRAM_VARIANTS_JSON.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return {}
 
     def _xy_of(self, sid: int) -> tuple[float, float]:
         e = self.estaciones[sid]
@@ -448,7 +536,7 @@ class Network:
             # tranvía se dibujan desde OSM; dibujar ambos duplicaba carriles)
             "metro_segs": sorted({
                 lc.seg for lid, lc in self.comerciales.items()
-                if str(lid) not in self.tram_tracks()
+                if str(lid) not in self.tram_tracks() and lc.variante_de is None
             }),
             "comerciales": {
                 str(lid): {
@@ -457,6 +545,9 @@ class Network:
                     "cum": [round(c, 1) for c in lc.cum],
                     "length": lc.length,
                     "estaciones": [{"id": s, "d": round(d, 1)} for d, s in lc.orden],
+                    # variante de ramal: solo posiciona trenes (no se dibuja ni va en la leyenda)
+                    "variante_de": lc.variante_de,
+                    "d_union": round(lc.d_union, 1) if lc.variante_de else None,
                 }
                 for lid, lc in self.comerciales.items()
             },

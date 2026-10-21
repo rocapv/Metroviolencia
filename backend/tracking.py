@@ -102,7 +102,7 @@ def _alinear(pred_rangos: list, curr_d: list, dt: float) -> list:
     return asig
 
 
-def track(curr: list, prev: list, dt: float, next_id: int):
+def track(curr: list, prev: list, dt: float, next_id: int, vias: dict | None = None):
     """Asigna track_id a cada tren actual.
 
     curr: lista de objetos Tren (positions.estimar) — tienen .linea, .destino y
@@ -112,19 +112,50 @@ def track(curr: list, prev: list, dt: float, next_id: int):
     dt:   segundos entre el snapshot anterior y el actual.
     next_id: primer id libre (max(track_id)+1).
 
+    vias: {via: (linea, d_union)} de las variantes de ramal (network.vias_de). Un
+          tren solo puede casar con otro de la MISMA vía, o con uno de otra vía
+          si los dos están en el tronco común (d >= d_union de ambas): un tren
+          en el ramal de Terramelar no es el que va por el ramal de Mas del
+          Rosari aunque sus d coincidan. Sin `vias`, se ignora la vía.
+
     Devuelve (ids, next_id): ids[i] = track_id del tren curr[i]."""
     ids = [None] * len(curr)
+    vias = vias or {}
+
+    def grupos_de(linea, destino, via, d):
+        """Grupos de emparejamiento a los que pertenece un tren: su vía y, si
+        está en el tronco, también las demás vías de su línea."""
+        if not vias:
+            return [(linea, destino, 0)]
+        propia = vias.get(via, (linea, 0.0))[1]
+        out = [(linea, destino, via)]
+        if d >= propia:
+            for v, (l, du) in vias.items():
+                if l == linea and v != via and d >= du:
+                    out.append((linea, destino, v))
+            if via != linea and (linea not in vias):
+                out.append((linea, destino, linea))
+        return out
 
     prev_by = defaultdict(list)
     for p in prev:
-        prev_by[(p["linea"], p["destino"])].append(p)
+        wp = p.get("waypoints") or []
+        d0 = wp[0]["d"] if wp else 0.0
+        for g in grupos_de(p["linea"], p["destino"], p.get("via") or p["linea"], d0):
+            prev_by[g].append(p)
 
     curr_by = defaultdict(list)
     for i, t in enumerate(curr):
-        curr_by[(t.linea, t.destino)].append(i)
+        for g in grupos_de(t.linea, t.destino, getattr(t, "via", 0) or t.linea, t.waypoints[0]["d"]):
+            curr_by[g].append(i)
 
-    for key, cidx in curr_by.items():
-        P = prev_by.get(key, [])
+    usados: set[int] = set()     # track_id ya asignados (un tren puede estar en varios grupos)
+    # la vía principal primero: en el tronco decide ella; las variantes recogen lo del ramal
+    for key in sorted(curr_by, key=lambda k: (k[2] != 0 and k[2] != k[0], k)):
+        cidx = [i for i in curr_by[key] if ids[i] is None]
+        if not cidx:
+            continue
+        P = [p for p in prev_by.get(key, []) if p["track_id"] not in usados]
         # previstos: intervalo plausible [d_viejo, d_predicho] + track_id.
         # El tren pudo moverse entre 0 (fuente sin refrescar) y v·Δt (refresco
         # completo) desde el pull anterior; su posición actual cae en ese rango.
@@ -149,6 +180,7 @@ def track(curr: list, prev: list, dt: float, next_id: int):
             pi = asig[k]
             if pi is not None:
                 ids[i] = pred_entries[pi][2]
+                usados.add(ids[i])
 
     for i in range(len(curr)):
         if ids[i] is None:

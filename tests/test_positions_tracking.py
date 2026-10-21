@@ -189,7 +189,7 @@ def test_to_dict_serializable(net):
     t = estimar(net, _llegadas(net, HACIA_FIN, [6, 7], [60, 180]))[0]
     d = t.to_dict()
     assert set(d) == {"linea", "destino", "color", "lat", "lng", "prox_estacion",
-                      "eta_seg", "waypoints", "origen"}
+                      "eta_seg", "waypoints", "origen", "via"}
     json.dumps(d)
 
 
@@ -233,15 +233,22 @@ def test_estimar_reproduce_los_trenes_guardados_en_raspa(net, extracto, snap):
     trenes que el poller de la Raspa guardó (misma red, mismo código)."""
     est = estimar(net, _llegadas_snapshot(extracto, snap))
     guardados = _trenes_snapshot(extracto, snap)
-    assert len(est) == len(guardados) > 50
     clave = lambda linea, destino, d: (linea, destino, round(d, 1))  # noqa: E731
-    a = sorted(clave(t.linea, t.destino, t.waypoints[0]["d"]) for t in est)
-    # Corregido tras el extracto (07/10/2026): el servicio L4 Ll. Llarga -> Empalme
-    # nace en Ll. Llarga (final de ramal); antes se dibujaba viniendo de Parc Científic.
-    corr = {(4, "Empalme", 1972.0): (4, "Empalme", 2333.0)}
-    b = sorted(corr.get(k, k) for k in
-               (clave(t["linea"], t["destino"], t["d"]) for t in guardados))
-    assert a == b
+    # Fuera de L4, exactamente los mismos trenes
+    a = sorted(clave(t.linea, t.destino, t.waypoints[0]["d"]) for t in est if t.linea != 4)
+    b = sorted(clave(t["linea"], t["destino"], t["d"]) for t in guardados if t["linea"] != 4)
+    assert a == b and len(a) > 50
+    # L4 va por ramales desde el 21/10/2026 (variantes 41/42): los trenes son los
+    # mismos salvo que (1) el que espera en Fira València existe de verdad y
+    # (2) desaparece el fantasma que el tronco deducía en Vicent Andrés Estellés
+    # a partir del ETA de Fira (que estaba proyectada sobre el tronco).
+    k4 = lambda dest, prox, eta: (dest, prox, eta)  # noqa: E731
+    a4 = sorted(k4(t.destino, t.prox_estacion, t.eta_seg) for t in est if t.linea == 4)
+    b4 = sorted(k4(t["destino"], t["prox_estacion"], t["eta_seg"]) for t in guardados if t["linea"] == 4)
+    fantasma = ("Dr. Lluch", "Vicent Andrés Estellés", 480)
+    fira = ("Dr. Lluch", "Fira València", 540 if snap == 31113 else 480)
+    assert sorted(x for x in a4 if x != fira) == sorted(x for x in b4 if x != fantasma)
+    assert fira in a4
     for t in est:
         assert t.waypoints[0]["eta"] == 0
         ds = [w["d"] for w in t.waypoints]
@@ -307,3 +314,22 @@ def test_retroceso_real_dentro_de_la_puerta_del_tracker(extracto):
     "anterior: cambio de producción, fuera del alcance de los tests."))
 def test_retroceso_real_estricto(extracto):
     assert _retrocesos_reales(extracto) == []
+
+
+def test_l4_trenes_de_ramal_sobre_su_estacion(net, extracto):
+    """Los trenes que nacen en Ll. Llarga - Terramelar o en Fira València se
+    sitúan EN la estación (antes: a 600 m, proyectados sobre el tronco)."""
+    import math
+    est = estimar(net, _llegadas_snapshot(extracto, 31113))
+    en_cabecera = {t.prox_estacion: t for t in est if t.linea == 4 and t.origen}
+    for nombre, via in (("Ll. Llarga - Terramelar", 42), ("Fira València", 41)):
+        t = en_cabecera[nombre]
+        e = net.estaciones[net.id_por_nombre(nombre)]
+        assert t.via == via
+        assert math.hypot((t.lat - e.lat) * 111000, (t.lng - e.lng) * 85000) < 30
+    # y ningún tren L4 queda lejos de la vía de su variante
+    for t in est:
+        if t.linea == 4:
+            lc = net.comerciales[t.via]
+            la, ln = lc.dist_to_latlng(t.waypoints[0]["d"])
+            assert abs(la - t.lat) < 1e-6 and abs(ln - t.lng) < 1e-6
