@@ -8,7 +8,13 @@
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const RADI_CANDIDAT = 600;    // m: trens que es proposen com a candidats
   const RADI_SEGUR = 150;       // m: si només n'hi ha un tan prop, es proposa el primer
-  const BOMBOLLA_MS = 5000;     // ms que dura la bombolla d'un missatge nou
+  const BOMBOLLA_MS = 5000;     // ms màxims que dura la bombolla d'un missatge nou
+  // Política de bombolles (RocaPV, 21/10/2026): el temps que un missatge es veu
+  // al mapa dependrà de la saturació de la xarxa. De moment, amb poc trànsit,
+  // UN MISSATGE NOU ESBORRA L'ANTERIOR (una sola bombolla alhora, fins a 5 s);
+  // quan hi haja més de SATURACIO_MSG_S missatges per segon caldrà una altra
+  // política (cua, agrupació per tren…), encara per definir.
+  const SATURACIO_MSG_S = 100;
   const FEED_N = 40;
 
   let alias = "";
@@ -192,6 +198,8 @@
       ? (window.marcadorTren && window.marcadorTren(m.lloc))
       : (window.marcadorEstacio && window.marcadorEstacio(m.lloc));
     if (!marker) return;
+    // un missatge nou esborra l'anterior (vegeu la política dalt)
+    while (bombolles.length) map.removeLayer(bombolles.pop().tt);
     const tt = L.tooltip({ permanent: true, direction: "top", offset: [0, -14], className: "xat-bombolla", interactive: false })
       .setLatLng(marker.getLatLng())
       .setContent(`${m.alias ? `<b>${esc(m.alias)}</b>: ` : ""}${esc(m.text)}`)
