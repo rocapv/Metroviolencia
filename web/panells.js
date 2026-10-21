@@ -61,7 +61,8 @@
   function desfase(t) {
     if (t.desfase_s == null) return "";
     const d = t.desfase_s, min = Math.round(Math.abs(d) / 60);
-    const [cls, txt] = d < 90 ? ["hora", "a l'hora"] : [d >= 180 ? "tard" : "poc", `+${min} min`];
+    const [cls, txt] = Math.abs(d) < 90 ? ["hora", "a l'hora"]
+      : d > 0 ? [d >= 180 ? "tard" : "poc", `+${min} min`] : ["avanc", `−${min} min`];
     return `<span class="ruta-desf ${cls}" title="programat ${esc(t.hora_prog)}">${esc(t.hora_prog)} · ${txt}</span>`;
   }
 

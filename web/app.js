@@ -466,14 +466,13 @@ function pintarTrenes(trenes) {
 
 // vora de la fletxa segons el retard: el farcit continua sent el color de la
 // línia; la vora només canvia si el tren NO va a l'hora (mapa tranquil)
-// (no hi ha "avançat": un tren no circula abans del seu horari; si ho pareix, és
-// l'anterior que va tard o que s'ha cancel·lat — el servidor ja ho casa així)
-const VORA_RETARD = { "": "#fff", poc: "#f59e0b", tard: "#ef4444" };
+const VORA_RETARD = { "": "#fff", poc: "#f59e0b", tard: "#ef4444", avanc: "#38bdf8" };
 function classeRetard(t) {
   const d = t.retraso ? t.retraso.retraso_s : null;
   if (d == null) return "";
   if (d >= 180) return "tard";
   if (d >= 90) return "poc";
+  if (d <= -90) return "avanc";
   return "";
 }
 
@@ -536,8 +535,9 @@ function retardTren(t) {
   const r = t.retraso;
   if (!r) return "";
   const d = r.retraso_s, min = Math.round(Math.abs(d) / 60);
-  const [col, txt] = d < 90 ? ["#4ade80", "va a l'hora"]
-    : [d >= 180 ? "#f87171" : "#fbbf24", `va <b>+${min} min</b> tard`];
+  const [col, txt] = Math.abs(d) < 90 ? ["#4ade80", "va a l'hora"]
+    : d > 0 ? [d >= 180 ? "#f87171" : "#fbbf24", `va <b>+${min} min</b> tard`]
+    : ["#38bdf8", `va <b>${min} min</b> avançat`];
   return `<br><span style="color:${col}">${txt}</span>
     <span style="color:#9a9aac">· programat a ${r.estacion} a les ${r.hora_prog}</span>`;
 }
@@ -680,11 +680,12 @@ async function obrirPopupEstacio(m) {
 }
 
 // desfase breu d'una arribada respecte a la seua hora programada de pas:
-// +2' (tard), · (a l'hora, d < 90 s) o res si no se sap
+// +2' (tard), −1' (avançat), · (a l'hora, |d| < 90 s) o res si no se sap
 function desfaseArribada(r) {
   if (!r || r.retraso_s == null) return "";
   const d = r.retraso_s, min = Math.round(Math.abs(d) / 60);
-  const [cls, txt] = d < 90 ? ["hora", "·"] : [d >= 180 ? "tard" : "poc", `+${min}'`];
+  const [cls, txt] = Math.abs(d) < 90 ? ["hora", "·"]
+    : d > 0 ? [d >= 180 ? "tard" : "poc", `+${min}'`] : ["avanc", `−${min}'`];
   return `<span class="ruta-desf arr-desf ${cls}" title="programat a les ${r.hora_prog}">${txt}</span>`;
 }
 

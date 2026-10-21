@@ -63,7 +63,7 @@ const ESTATS = { realizada:"Realitzada", cancelada:"Cancel·lada", prevista:"Pre
 let colors = {}, dades = null, filtreEstat = "";
 const $ = (id) => document.getElementById(id);
 const hm = (t) => t ? new Date(t * 1000).toLocaleTimeString("ca-ES", { hour: "2-digit", minute: "2-digit" }) : "";
-const retard = (s) => s == null ? "" : s < 90 ? "a l'hora" : "+" + Math.round(s / 60) + " min";
+const retard = (s) => s == null ? "" : (s >= 0 ? "+" : "−") + Math.round(Math.abs(s) / 60) + " min";
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
 
 function lin(l) {

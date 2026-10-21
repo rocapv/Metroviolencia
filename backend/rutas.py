@@ -234,8 +234,7 @@ def _ts(dia: str, hhmm: str) -> int:
 def desfases(trenes_p: list[dict], salidas: list[str], dia: str, ts_datos: int) -> None:
     """Casa cada tren en vivo (hora real prevista en la estación de subida =
     ts_datos + eta) con su salida PROGRAMADA más cercana (±VENTANA_CASE) y
-    anota hora_prog y desfase_s (>= -60: un tren no sale adelantado; la salida
-    programada que le corresponde es la última que no queda después)."""
+    anota hora_prog y desfase_s (+ retraso, − adelanto)."""
     prog = sorted(_ts(dia, h) for h in salidas)
     usadas: set[int] = set()
     for t in sorted(trenes_p, key=lambda x: (x["eta_subida"] is None, x["eta_subida"] or 0)):
@@ -243,10 +242,10 @@ def desfases(trenes_p: list[dict], salidas: list[str], dia: str, ts_datos: int) 
         if t["eta_subida"] is None or t["eta_subida"] >= ETA_PRECISA:
             continue          # "1 h" no trae minutos: no sirve para medir desfase
         real = ts_datos + t["eta_subida"]
-        cands = [p for p in prog if p not in usadas and -60 <= real - p <= VENTANA_CASE]
+        cands = [p for p in prog if p not in usadas and abs(real - p) <= VENTANA_CASE]
         if not cands:
             continue
-        p = max(cands)            # la última salida programada no posterior al tren
+        p = min(cands, key=lambda x: abs(real - x))
         usadas.add(p)
         t["hora_prog"] = dt.datetime.fromtimestamp(p).strftime("%H:%M")
         t["desfase_s"] = real - p

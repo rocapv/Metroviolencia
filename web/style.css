@@ -300,6 +300,7 @@ html, body {
 .ruta-desf.hora { color: #4ade80; }
 .ruta-desf.poc { color: #fbbf24; }
 .ruta-desf.tard { color: #f87171; border-color: #f8717155; }
+.ruta-desf.avanc { color: #38bdf8; }
 .ruta-tren .arr-dest { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ruta-canc { color: #f87171; font-size: 12px; margin: 3px 0; }
 .ret-tabs { flex-wrap: wrap; }

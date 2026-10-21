@@ -395,17 +395,3 @@ def test_retrasos_reales_quitan_solo_pares_incoherentes(net, bd_real, extracto):
     finales = retrasos(bd_real.con, net, dia)
     assert len(finales) == len([f for f in crudos if (f["estacion_id"], f["hacia_id"]) not in malos])
     assert all((f["estacion_id"], f["hacia_id"]) not in malos for f in finales)
-
-
-def test_un_tren_nunca_va_adelantado():
-    """Regla del 21/10/2026: la hora programada de un paso es la ÚLTIMA que no
-    queda después de él. Un paso 2 min 'antes' de una hora es el tren anterior
-    con retraso (o el anterior se canceló), no un tren adelantado."""
-    from backend.pasos import _casar_slot, ADELANTO_MAX, VENTANA
-    t = 1_700_000_000
-    slots = [t, t + 600, t + 1200]
-    assert _casar_slot(slots, t + 480) == (t, 480)            # no (t+600, -120)
-    assert _casar_slot(slots, t + 600 - ADELANTO_MAX) == (t + 600, -ADELANTO_MAX)  # redondeo tolerado
-    assert _casar_slot(slots, t - ADELANTO_MAX - 1) is None   # antes de la primera: nada
-    assert _casar_slot(slots, t + 1200 + VENTANA + 1) is None  # demasiado tarde
-    assert _casar_slot([t, t + 60, t + 1200], t + 90) is None  # dos horas pegadas: ambiguo
