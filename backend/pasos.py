@@ -573,6 +573,8 @@ def retraso_arribada(con, net, sid: int, linea: int, destino: str, ts_prev: int,
 
 MARGEN_CANC = 60       # s: un paso hasta 1 min antes de su hora sigue siendo ese tren
 INTERVALO_FIN = 1200   # s: "siguiente" ficticio tras la última hora del día si no hay anterior
+HORIZONTE_CANC = 1800  # s: tras la hora programada, plazo en que se cuentan trenes para confirmar el déficit
+HOLGURA_CANC = 300     # s: las últimas horas del horizonte no se exigen (pueden llegar tarde)
 
 
 def _lineas_del_par(net, sid: int, v: int) -> list[int]:
@@ -585,17 +587,29 @@ def _lineas_del_par(net, sid: int, v: int) -> list[int]:
     return out
 
 
-def cancelados_estacion(con, net, sid: int, dia: str, ahora: int | None = None) -> list[dict]:
+def cancelados_estacion(con, net, sid: int, dia: str, ahora: int | None = None,
+                        dudosos: set | None = None) -> list[dict]:
     """Trenes programados que NO han pasado por la estación `sid` en `dia`.
 
     Regla (la del usuario): para cada vecina, con las horas programadas
     P_1 < P_2 < ..., la P_i está cancelada si ningún paso real por la estación
     hacia esa vecina cae en [P_i − MARGEN_CANC, P_{i+1}): el tren "no salió ni a
     su hora ni antes que la hora del siguiente". Cada paso real cuenta una sola
-    vez (se casan por orden). Solo se juzga cuando ahora > P_{i+1} + MARGEN_CANC
-    y si la estación se leyó bien alrededor de esa ventana (sin lecturas no es
-    cancelado: es "sin datos"). Para la última hora del día, P_{n+1} = P_n +
-    el intervalo anterior (o INTERVALO_FIN)."""
+    vez (se casan por orden). Para la última hora del día, P_{n+1} = P_n + el
+    intervalo anterior (o INTERVALO_FIN).
+
+    El horario de paso no distingue líneas: en un tronco compartido "el
+    siguiente" está a 2-3 min y cualquier retraso mayor parecería una
+    cancelación (regla sola: ~900 "cancelados" en un día con 8 reales). Por eso
+    la cancelación se CONFIRMA con un déficit de trenes: en [P_i − MARGEN_CANC,
+    P_i + HORIZONTE_CANC) tiene que haber pasado MENOS trenes que horas
+    programadas hay en [P_i, P_i + HORIZONTE_CANC − HOLGURA_CANC); si pasaron
+    tantos como estaban previstos, solo iban tarde. Solo se juzga cuando
+    ahora > max(P_{i+1}, P_i + HORIZONTE_CANC) + MARGEN_CANC, si la estación se
+    leyó bien alrededor (sin lecturas no es cancelado: es "sin datos"), si la
+    fuente publica esa dirección en esa estación (algún paso real hacia esa
+    vecina en el día) y si el par no es incoherente (`incoherentes`)."""
+    import bisect
     from .salidas import HUECO_MAX, _cobertura, _cubierto
     ahora = ahora or int(time.time())
     t0, t1 = _rango_dia(dia)
@@ -603,19 +617,25 @@ def cancelados_estacion(con, net, sid: int, dia: str, ahora: int | None = None) 
     pares_est = {k: v for k, v in prog.items() if k[0] == sid}
     if not pares_est:
         return []
+    if dudosos is None:
+        dudosos = incoherentes(con, net, dia)
     sent = sentidos_inferidos(con, net, dia)
     reales: dict[int, list[int]] = {}
+    # `+estado`: que SQLite no elija el índice por estado (recorrería todos los
+    # pasos históricos) y use el de ts_salida (solo el día)
     for linea, destino, tp in con.execute(
             "SELECT linea, destino, ts_salida FROM pasos_obs WHERE origen_id=? "
-            "AND estado='salida' AND ts_salida>=? AND ts_salida<?",
+            "AND +estado='salida' AND ts_salida>=? AND ts_salida<?",
             (sid, t0 - 3600, t1 + 3600)):
         v = _vecina(net, linea, sid, destino, sent.get((linea, destino)))
         if v is not None:
             reales.setdefault(v, []).append(tp)
-    cob = _cobertura(con, sid, t0 - HUECO_MAX, t1 + HUECO_MAX)
+    cob = None
     out = []
     for (_s, v), slots in pares_est.items():
         obs = sorted(reales.get(v, []))
+        if not obs or (sid, v) in dudosos:
+            continue                              # la fuente no publica esa dirección aquí / horario malo
         k = 0                                     # primer paso real aún sin casar
         for i, p in enumerate(slots):
             if i + 1 < len(slots):
@@ -628,8 +648,15 @@ def cancelados_estacion(con, net, sid: int, dia: str, ahora: int | None = None) 
             if k < len(obs) and obs[k] < sig:
                 k += 1                            # este tren pasó (a su hora o antes del siguiente)
                 continue
-            if ahora <= sig + MARGEN_CANC:
-                continue                          # pendiente: aún puede pasar
+            fin = max(sig, p + HORIZONTE_CANC)
+            if ahora <= fin + MARGEN_CANC:
+                continue                          # pendiente: aún puede pasar / confirmarse
+            n_prog = bisect.bisect_left(slots, p + HORIZONTE_CANC - HOLGURA_CANC) - i
+            n_real = bisect.bisect_left(obs, p + HORIZONTE_CANC) - bisect.bisect_left(obs, ini)
+            if n_real >= n_prog:
+                continue                          # pasaron tantos como estaban previstos: solo retraso
+            if cob is None:
+                cob = _cobertura(con, sid, t0 - HUECO_MAX, t1 + HUECO_MAX)
             if not (_cubierto(cob, p) and _cubierto(cob, sig)):
                 continue                          # sin lecturas: no se sabe, no es cancelado
             out.append({"hora": _hhmm(p), "ts_prog": p, "hacia_id": v,

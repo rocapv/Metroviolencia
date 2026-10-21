@@ -265,12 +265,15 @@ def test_retraso_arribada(net, bd):
 def escenario_canc(net, bd):
     """A->B con horario 10:00, 10:10, 10:20, 10:30 y pasos reales a las 10:01
     y 10:17 (tarde pero antes del siguiente). Lecturas de la estación cada
-    minuto de 09:30 a 10:50."""
+    minuto de 09:30 a 11:10. Con HORIZONTE_CANC=1800 el de las 10:20 se juzga
+    a partir de las 10:51 y el de las 10:30 (siguiente ficticio 10:40) a
+    partir de las 11:01."""
     con = bd.con
     o = _orden(net)
     A, B = o[10], o[11]
     t0, _ = _rango_dia(DIA)
     h = lambda hh, mm: t0 + hh * 3600 + mm * 60  # noqa: E731
+    pasos._incoh_cache[DIA] = set()           # sin hilo de fondo
     con.executemany("INSERT INTO horario_paso(dia,estacion_id,hacia_id,ts_prog,hora)"
                     " VALUES (?,?,?,?,?)",
                     [(DIA, A, B, h(10, m), f"10:{m:02d}") for m in (0, 10, 20, 30)])
@@ -280,74 +283,89 @@ def escenario_canc(net, bd):
         "ts_pred,n_vistas,estado,ts_salida) VALUES (?,?,?,?,?,?,?,?,'salida',?)",
         [(s, l, d, t - 600, t, t, t, 10, t) for s, l, d, t in obs])
     con.executemany("INSERT INTO snapshots(ts) VALUES (?)",
-                    [(h(9, 30) + 60 * k,) for k in range(81)])
+                    [(h(9, 30) + 60 * k,) for k in range(101)])
     con.commit()
-    return {"con": con, "A": A, "B": B, "h": h}
+
+    def paso(t, estado="salida"):
+        con.execute(
+            "INSERT INTO pasos_obs(origen_id,linea,destino,ts_primera,ts_ultima,pred_inicial,"
+            "ts_pred,n_vistas,estado,ts_salida) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (A, L1, BETERA, t - 600, t, t, t, 10, estado, t))
+        con.commit()
+
+    def canc(ahora, sid=A):
+        return [c["hora"] for c in cancelados_estacion(con, net, sid, DIA, ahora=ahora)]
+
+    return {"con": con, "A": A, "B": B, "h": h, "paso": paso, "canc": canc}
 
 
 def test_cancelado_el_que_no_paso_ni_antes_del_siguiente(net, escenario_canc):
     e = escenario_canc
-    # a las 10:38: el de las 10:10 pasó a las 10:17 (tarde, pero antes de las 10:20):
-    # NO cancelado; el de las 10:20 no pasó ni antes de las 10:30: CANCELADO; el de
-    # las 10:30 no tiene paso pero su siguiente ficticio (10:40) + 60 s > ahora: pendiente
-    res = cancelados_estacion(e["con"], net, e["A"], DIA, ahora=e["h"](10, 38))
+    # a las 10:55: el de las 10:10 pasó a las 10:17 (tarde, pero antes de las 10:20):
+    # NO cancelado; el de las 10:20 no pasó ni antes de las 10:30 y en la media hora
+    # siguiente no pasó ningún tren (déficit): CANCELADO; el de las 10:30: pendiente
+    res = cancelados_estacion(e["con"], net, e["A"], DIA, ahora=e["h"](10, 55))
     assert [c["hora"] for c in res] == ["10:20"]
     c = res[0]
+    assert set(c) == {"hora", "ts_prog", "hacia_id", "hacia", "lineas"}
     assert c["ts_prog"] == e["h"](10, 20) and c["hacia_id"] == e["B"]
     assert c["hacia"] == net.estaciones[e["B"]].nombre
     assert L1 in c["lineas"]
 
 
-def test_cancelado_pendiente_hasta_pasar_la_hora_del_siguiente(net, escenario_canc):
-    e = escenario_canc
-    # a las 10:20:30 el de las 10:20 aún puede pasar antes de las 10:30 -> nada
-    assert cancelados_estacion(e["con"], net, e["A"], DIA, ahora=e["h"](10, 20) + 30) == []
-    # a las 10:31:30 ya se juzga (ahora > 10:30 + 60)
-    assert [c["hora"] for c in cancelados_estacion(e["con"], net, e["A"], DIA, ahora=e["h"](10, 31) + 30)] == ["10:20"]
-    # a las 10:50 también cae el último (su siguiente ficticio es 10:40)
-    assert [c["hora"] for c in cancelados_estacion(e["con"], net, e["A"], DIA, ahora=e["h"](10, 50))] == ["10:20", "10:30"]
+def test_cancelado_pendiente_hasta_confirmar_el_deficit(net, escenario_canc):
+    e, h = escenario_canc, escenario_canc["h"]
+    assert e["canc"](h(10, 20) + 30) == []          # aún puede pasar antes de las 10:30
+    assert e["canc"](h(10, 31) + 30) == []          # no pasó, pero el horizonte de media hora no ha vencido
+    assert e["canc"](h(10, 52)) == ["10:20"]        # vencido (10:50 + 60 s): cancelado
+    assert e["canc"](h(11, 5)) == ["10:20", "10:30"]  # el último también (su siguiente ficticio es 10:40)
 
 
 def test_cancelado_un_paso_real_solo_cuenta_una_vez(net, escenario_canc):
     """Un paso a las 10:19:30 está en la ventana del 10:10 (ya ocupada por el de
-    las 10:17) y en la del 10:20: se lo lleva el 10:20 por orden -> ninguno cancelado."""
-    e = escenario_canc
-    t = e["h"](10, 19) + 30
-    e["con"].execute(
-        "INSERT INTO pasos_obs(origen_id,linea,destino,ts_primera,ts_ultima,pred_inicial,"
-        "ts_pred,n_vistas,estado,ts_salida) VALUES (?,?,?,?,?,?,?,?,'salida',?)",
-        (e["A"], L1, BETERA, t - 600, t, t, t, 10, t))
-    e["con"].commit()
-    assert cancelados_estacion(e["con"], net, e["A"], DIA, ahora=e["h"](10, 38)) == []
+    las 10:17) y en la del 10:20: se lo lleva el 10:20 por orden."""
+    e, h = escenario_canc, escenario_canc["h"]
+    e["paso"](h(10, 19) + 30)
+    assert e["canc"](h(10, 55)) == []
+    assert e["canc"](h(11, 5)) == ["10:30"]
+
+
+def test_retraso_mayor_que_el_intervalo_no_es_cancelacion(net, escenario_canc):
+    """El de las 10:20 pasa a las 10:31 y el de las 10:30 a las 10:39: ninguno
+    cae en su ventana literal, pero en la media hora pasaron tantos trenes
+    como estaban programados -> solo retraso, nada cancelado."""
+    e, h = escenario_canc, escenario_canc["h"]
+    e["paso"](h(10, 31)); e["paso"](h(10, 39))
+    assert e["canc"](h(11, 5)) == []
 
 
 def test_cancelado_sin_cobertura_no_se_juzga(net, escenario_canc):
-    e = escenario_canc
-    # sin lecturas de la estación entre 10:15 y 10:35 (poller caído): "sin datos", no cancelado
-    e["con"].execute("DELETE FROM snapshots WHERE ts>=? AND ts<?", (e["h"](10, 9), e["h"](10, 41)))
+    e, h = escenario_canc, escenario_canc["h"]
+    # sin lecturas de la estación entre 10:09 y 10:41 (poller caído): "sin datos", no cancelado
+    e["con"].execute("DELETE FROM snapshots WHERE ts>=? AND ts<?", (h(10, 9), h(10, 41)))
     e["con"].commit()
-    assert cancelados_estacion(e["con"], net, e["A"], DIA, ahora=e["h"](10, 45)) == []
+    assert e["canc"](h(10, 55)) == []
     # las lecturas fallidas de ESA estación tampoco cuentan como cobertura
     e["con"].execute("DELETE FROM snapshots")
-    e["con"].executemany("INSERT INTO snapshots(ts) VALUES (?)", [(e["h"](9, 30) + 60 * k,) for k in range(81)])
+    e["con"].executemany("INSERT INTO snapshots(ts) VALUES (?)", [(h(9, 30) + 60 * k,) for k in range(101)])
     e["con"].executemany("INSERT INTO lecturas_fallidas(snapshot_id,ts,estacion_id) VALUES (?,?,?)",
-                         [(0, e["h"](9, 30) + 60 * k, e["A"]) for k in range(81)])
+                         [(0, h(9, 30) + 60 * k, e["A"]) for k in range(101)])
     e["con"].commit()
-    assert cancelados_estacion(e["con"], net, e["A"], DIA, ahora=e["h"](10, 45)) == []
+    assert e["canc"](h(10, 55)) == []
 
 
-def test_cancelado_estacion_sin_horario_o_pasos_desaparecidos(net, escenario_canc):
-    e = escenario_canc
+def test_cancelado_salvaguardas(net, escenario_canc):
+    e, h = escenario_canc, escenario_canc["h"]
     o = _orden(net)
-    assert cancelados_estacion(e["con"], net, o[20], DIA, ahora=e["h"](10, 38)) == []
-    # un paso 'desaparecida' a las 10:21 no es un paso real: sigue cancelado
-    t = e["h"](10, 21)
-    e["con"].execute(
-        "INSERT INTO pasos_obs(origen_id,linea,destino,ts_primera,ts_ultima,pred_inicial,"
-        "ts_pred,n_vistas,estado,ts_salida) VALUES (?,?,?,?,?,?,?,?,'desaparecida',?)",
-        (e["A"], L1, BETERA, t - 600, t, t, t, 10, t))
-    e["con"].commit()
-    assert [c["hora"] for c in cancelados_estacion(e["con"], net, e["A"], DIA, ahora=e["h"](10, 38))] == ["10:20"]
+    assert e["canc"](h(10, 55), sid=o[20]) == []              # estación sin horario
+    e["paso"](h(10, 21), estado="desaparecida")               # no es un paso real: sigue cancelado
+    assert e["canc"](h(10, 55)) == ["10:20"]
+    pasos._incoh_cache[DIA] = {(e["A"], e["B"])}              # par con horario incoherente: no se juzga
+    assert e["canc"](h(10, 55)) == []
+    pasos._incoh_cache[DIA] = set()
+    # la fuente no publica esa dirección en esta estación (ningún paso real en el día)
+    e["con"].execute("DELETE FROM pasos_obs"); e["con"].commit()
+    assert e["canc"](h(11, 5)) == []
 
 
 # ------------------------------------------------------------- datos reales
