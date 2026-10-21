@@ -156,6 +156,16 @@ def test_trains_desde_tabla_trenes(cliente, extracto, tmp_path):
                 "eta_seg", "origen", "waypoints", "retraso"} <= set(t)
         assert isinstance(t["waypoints"], list) and t["waypoints"][0]["eta"] == 0
 
+        assert t["retraso"] is None or {"retraso_s", "estacion", "hora_prog"} == set(t["retraso"])
+        if t["origen"]:
+            assert t["retraso"] is None
+    # con horario de paso del día hay retrasos en vivo calculados para algunos
+    assert sum(t["retraso"] is not None for t in j["trenes"]) > 0
+    assert j["noinfo"] == []
+    assert j["edad_seg"] > 0 and j["srv_ms"] > 0
+    # marcó cliente activo (cadencia rápida del poller)
+    assert (tmp_path / "last_client.txt").exists()
+
 
 def test_ultimo_marca_la_ultima_pasada_servida(cliente, extracto):
     """/api/ultimo: ts de la última pasada con trenes (barato, el cliente lo
@@ -168,15 +178,6 @@ def test_ultimo_marca_la_ultima_pasada_servida(cliente, extracto):
     assert "ts_fin" in j and "srv_ms" in j
     # /api/trains lleva la misma marca
     assert cliente.get("/api/trains", headers=LAN).json()["ts_fin"] == j["ts_fin"]
-        assert t["retraso"] is None or {"retraso_s", "estacion", "hora_prog"} == set(t["retraso"])
-        if t["origen"]:
-            assert t["retraso"] is None
-    # con horario de paso del día hay retrasos en vivo calculados para algunos
-    assert sum(t["retraso"] is not None for t in j["trenes"]) > 0
-    assert j["noinfo"] == []
-    assert j["edad_seg"] > 0 and j["srv_ms"] > 0
-    # marcó cliente activo (cadencia rápida del poller)
-    assert (tmp_path / "last_client.txt").exists()
 
 
 def test_trains_fallback_estimando_al_vuelo(cliente, bd_real, extracto):
