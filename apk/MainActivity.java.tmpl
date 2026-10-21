@@ -11,6 +11,9 @@ import android.content.pm.PackageManager;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
 import android.graphics.drawable.Icon;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -18,6 +21,7 @@ import android.os.Looper;
 import android.text.InputType;
 import android.view.KeyEvent;
 import android.webkit.GeolocationPermissions;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebSettings;
@@ -51,6 +55,70 @@ public class MainActivity extends Activity {
     private static final int REQ_UBICACIO = 77;
     private String geoOrigen;
     private GeolocationPermissions.Callback geoCallback;
+    // ubicació nativa: la Geolocation API de la WebView només va per HTTPS i la
+    // LAN és http; Android dóna la posició i s'injecta a la web (window.mvPosicio).
+    // La posició no ix del mòbil: la web només la usa per a triar el tren.
+    private static final int REQ_UBICACIO_NATIVA = 78;
+    private LocationManager locMgr;
+    private boolean ubicacioActiva = false;
+    private final LocationListener locListener = new LocationListener() {
+        @Override public void onLocationChanged(Location l) {
+            final String js = "window.mvPosicio && window.mvPosicio(" + l.getLatitude() + "," + l.getLongitude()
+                    + "," + l.getAccuracy() + ")";
+            runOnUiThread(new Runnable() { @Override public void run() { web.evaluateJavascript(js, null); } });
+        }
+        @Override public void onProviderDisabled(String p) {}
+        @Override public void onProviderEnabled(String p) {}
+        @Override public void onStatusChanged(String p, int s, Bundle b) {}
+    };
+
+    private final class Natiu {
+        @JavascriptInterface
+        public void demanaUbicacio() {
+            runOnUiThread(new Runnable() { @Override public void run() { iniciaUbicacio(); } });
+        }
+        @JavascriptInterface
+        public void aturaUbicacio() {
+            runOnUiThread(new Runnable() { @Override public void run() { aturaUbicacio(); } });
+        }
+    }
+
+    private void iniciaUbicacio() {
+        if (Build.VERSION.SDK_INT >= 23
+                && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[] { Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION }, REQ_UBICACIO_NATIVA);
+            return;
+        }
+        if (ubicacioActiva) return;
+        try {
+            if (locMgr == null) locMgr = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            for (String prov : new String[] { LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER }) {
+                if (locMgr.isProviderEnabled(prov)) {
+                    locMgr.requestLocationUpdates(prov, 2000, 5, locListener);
+                    Location last = locMgr.getLastKnownLocation(prov);
+                    if (last != null) locListener.onLocationChanged(last);
+                    ubicacioActiva = true;
+                }
+            }
+            if (!ubicacioActiva) web.evaluateJavascript(
+                    "window.mvPosicioError && window.mvPosicioError('Activa la ubicació del mòbil.')", null);
+        } catch (SecurityException e) {
+            web.evaluateJavascript("window.mvPosicioError && window.mvPosicioError('Sense permís d\'ubicació.')", null);
+        }
+    }
+
+    private void aturaUbicacio() {
+        if (locMgr != null && ubicacioActiva) locMgr.removeUpdates(locListener);
+        ubicacioActiva = false;
+    }
+
+    @Override
+    protected void onDestroy() {
+        aturaUbicacio();
+        super.onDestroy();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,6 +130,7 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setCacheMode(WebSettings.LOAD_NO_CACHE);
         s.setGeolocationEnabled(true);
+        web.addJavascriptInterface(new Natiu(), "MetroviolenciaNatiu");
         web.setWebViewClient(new Client());
         // El xat tria el tren per proximitat: la web demana la ubicació i la
         // WebView la concedeix si l'usuari ha donat el permís del sistema.
@@ -189,8 +258,14 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int req, String[] perms, int[] res) {
         super.onRequestPermissionsResult(req, perms, res);
-        if (req != REQ_UBICACIO || geoCallback == null) return;
         boolean ok = res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED;
+        if (req == REQ_UBICACIO_NATIVA) {
+            if (ok) iniciaUbicacio();
+            else web.evaluateJavascript(
+                    "window.mvPosicioError && window.mvPosicioError('Has denegat la ubicació. Pots triar una estació a mà.')", null);
+            return;
+        }
+        if (req != REQ_UBICACIO || geoCallback == null) return;
         geoCallback.invoke(geoOrigen, ok, false);
         geoCallback = null; geoOrigen = null;
     }

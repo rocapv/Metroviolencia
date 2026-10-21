@@ -55,16 +55,32 @@
   };
 
   /* ---------------- ubicació: tria el tren per proximitat (en local) ---------------- */
+  function novaPosicio(lat, lng) {
+    posicio = { lat, lng };
+    posicioTs = Date.now();
+    avis("");
+    pintaCandidats();
+    if (lloc && lloc.tipus === "tren") pintaLloc();
+  }
+  // La APK injecta `MetroviolenciaNatiu`: la posició la dóna Android i arriba per
+  // window.mvPosicio. Cal perquè la Geolocation API de la WebView només funciona en
+  // orígens HTTPS i dins de la LAN la web va per http.
+  window.mvPosicio = (lat, lng, acc) => novaPosicio(lat, lng);
+  window.mvPosicioError = (msg) => { avis(msg || "No s'ha pogut obtindre la posició."); geoWatch = null; };
   function activaUbicacio() {
+    if (window.MetroviolenciaNatiu && window.MetroviolenciaNatiu.demanaUbicacio) {
+      if (geoWatch != null) { pintaCandidats(); return; }
+      geoWatch = "natiu";
+      avis("Buscant la teua posició…", true);
+      window.MetroviolenciaNatiu.demanaUbicacio();
+      return;
+    }
     if (!navigator.geolocation) { avis("Este navegador no té geolocalització."); return; }
+    if (!window.isSecureContext) { avis("La ubicació només funciona per HTTPS (o des de l'app)."); return; }
     if (geoWatch != null) { pintaCandidats(); return; }
     avis("Buscant la teua posició…", true);
     geoWatch = navigator.geolocation.watchPosition((p) => {
-      posicio = { lat: p.coords.latitude, lng: p.coords.longitude };
-      posicioTs = Date.now();
-      avis("");
-      pintaCandidats();
-      if (lloc && lloc.tipus === "tren") pintaLloc();
+      novaPosicio(p.coords.latitude, p.coords.longitude);
     }, (err) => {
       avis(err.code === 1 ? "Has denegat la ubicació. Pots triar una estació a mà." : "No s'ha pogut obtindre la posició.");
       navigator.geolocation.clearWatch(geoWatch); geoWatch = null;
