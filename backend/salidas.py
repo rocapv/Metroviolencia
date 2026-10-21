@@ -34,7 +34,7 @@ PROX = 120            # s: si desaparece con salida prevista a <2 min -> ha sali
 HUECO_MAX = 600       # s: más de 10 min sin ver la cabecera -> sin_datos
 REAPARECE = 900       # s: una desaparecida puede volver a casarse durante 15 min
 # cruce programado<->real
-VENTANA_ANTES = -300  # s: salida real hasta 5 min antes de la programada
+VENTANA_ANTES = -60   # s: un tren no sale adelantado; 60 s por el redondeo al minuto
 VENTANA_DESPUES = 1800  # s: ... y hasta 30 min después
 PEN_DESTINO = 300     # s de penalización si el destino no coincide
 PEN_LINEA = 900       # s de penalización si la línea (conocida) no coincide

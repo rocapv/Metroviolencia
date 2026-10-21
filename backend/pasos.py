@@ -29,6 +29,12 @@ from .salidas import _rango_dia, seguir
 
 VENTANA = 900          # s: un paso casa con una hora programada a <15 min
 MARGEN_AMBIG = 90      # s: si otra hora programada está casi igual de cerca -> ambiguo
+# Un tren NO circula adelantado: la hora programada que le corresponde es la
+# ÚLTIMA que no queda después de su paso real (si pasa 'antes' de una hora, es
+# que es el tren anterior, que va tarde, o que el anterior se canceló). Se
+# toleran ADELANTO_MAX s por el redondeo al minuto de la fuente. (RocaPV,
+# 21/10/2026: con la definición de cancelado por déficit, 'avanzado' desaparece.)
+ADELANTO_MAX = 60
 INCOHERENTE = 150     # s: desvío máximo del retraso mediano frente a paradas contiguas
 TARDE = 180            # s: a partir de aquí el paso "va tarde"
 
@@ -425,7 +431,7 @@ def _calcula_incoherentes(net, dia: str) -> None:
 
 def retrasos(con, net, dia: str) -> list[dict]:
     """Pasos reales del día casados con su hora programada: una fila por paso
-    con retraso_s (+ tarde, − adelantado). Los ambiguos y los de paradas con
+    con retraso_s (>= -ADELANTO_MAX: un tren no va adelantado). Los ambiguos y los de paradas con
     horario incoherente no se devuelven."""
     filas = _crudos(con, net, dia)
     malos = pares_incoherentes(filas, extremos=_extremos(net, filas))
@@ -448,8 +454,11 @@ def _crudos(con, net, dia: str) -> list[dict]:
     out = []
     for (sid, v), obs in grupos.items():
         slots = sorted(prog[(sid, v)])
-        pares_ = sorted((abs(o[0] - p), i, j) for i, o in enumerate(obs)
-                        for j, p in enumerate(slots) if abs(o[0] - p) <= VENTANA)
+        # candidatos: solo horas programadas NO posteriores al paso (±ADELANTO_MAX)
+        # y a menos de VENTANA; el coste es el retraso, así cada paso se queda con
+        # la última hora que no le queda después (nunca "adelantado")
+        pares_ = sorted((o[0] - p, i, j) for i, o in enumerate(obs)
+                        for j, p in enumerate(slots) if -ADELANTO_MAX <= o[0] - p <= VENTANA)
         usados_o, usados_s = set(), set()
         for _d, i, j in pares_:
             if i in usados_o or j in usados_s:
@@ -457,9 +466,8 @@ def _crudos(con, net, dia: str) -> list[dict]:
             usados_o.add(i); usados_s.add(j)
             tpaso, linea, destino = obs[i]
             d = tpaso - slots[j]
-            # ambiguo: otra hora programada casi igual de cerca (troncos compartidos)
-            otra = min((abs(tpaso - p) for k, p in enumerate(slots) if k != j), default=1e9)
-            if otra < abs(d) + MARGEN_AMBIG:
+            # ambiguo: la hora programada anterior está casi pegada (troncos compartidos)
+            if j > 0 and slots[j] - slots[j - 1] < MARGEN_AMBIG:
                 continue
             out.append({"estacion_id": sid, "hacia_id": v,
                         "estacion": net.estaciones[sid].nombre,
@@ -488,20 +496,23 @@ def _prog_dia(con, dia: str) -> dict[tuple[int, int], list[int]]:
 
 
 def _casar_slot(slots: list[int], real: int) -> tuple[int, int] | None:
-    """(ts_prog, retraso_s) de la hora programada más cercana a `real` entre
-    `slots` (ordenados), o None si está a más de VENTANA o si otra hora está
-    casi igual de cerca (MARGEN_AMBIG: tronco compartido, no se sabe cuál es)."""
+    """(ts_prog, retraso_s) de la ÚLTIMA hora programada que no queda después
+    de `real` entre `slots` (ordenados; se toleran ADELANTO_MAX s de adelanto por
+    el redondeo), o None si el retraso pasa de VENTANA o si la hora anterior está
+    casi pegada (MARGEN_AMBIG: tronco compartido, no se sabe cuál es)."""
     import bisect
     if not slots:
         return None
-    i = bisect.bisect_left(slots, real)
-    cands = sorted(slots[max(0, i - 2):i + 2], key=lambda p: abs(real - p))
-    d = real - cands[0]
-    if abs(d) > VENTANA:
+    # la última hora programada que no queda después del paso (tolerancia ADELANTO_MAX)
+    i = bisect.bisect_right(slots, real + ADELANTO_MAX) - 1
+    if i < 0:
         return None
-    if len(cands) > 1 and abs(real - cands[1]) < abs(d) + MARGEN_AMBIG:
+    d = real - slots[i]
+    if d > VENTANA:
         return None
-    return cands[0], d
+    if i > 0 and slots[i] - slots[i - 1] < MARGEN_AMBIG:
+        return None          # dos horas casi pegadas: no se sabe cuál es (tronco compartido)
+    return slots[i], d
 
 
 def _hhmm(ts: int) -> str:
@@ -549,7 +560,7 @@ def retraso_arribada(con, net, sid: int, linea: int, destino: str, ts_prev: int,
     """Desfase de UNA llegada anunciada en la estación `sid`: el instante
     previsto de paso (`ts_prev` = ts de la pasada + eta) frente a la hora
     programada de paso por `sid` hacia su vecina en el sentido del destino.
-    {retraso_s, hora_prog} (+ tarde, − adelantado) o None si no hay horario,
+    {retraso_s, hora_prog} (retraso_s >= -ADELANTO_MAX) o None si no hay horario,
     el destino no fija sentido, el par es incoherente, está a más de VENTANA
     o el casamiento es ambiguo (MARGEN_AMBIG). `prog`/`dudosos` se pueden
     pasar ya calculados para no repetir la consulta por cada llegada."""
