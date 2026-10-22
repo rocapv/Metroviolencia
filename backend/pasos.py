@@ -307,12 +307,12 @@ def _vecina(net, linea: int, sid: int, destino: str,
     "Benimaclet" = Bétera, hoy corregida en parser.DESTINO_ALIAS; queda como
     red para el histórico y para rótulos nuevos), usa `sentido` (+1 = orden
     creciente)."""
-    lc = net.comerciales.get(linea)
+    # la estación puede estar solo en una variante de ramal (L4: Ll. Llarga, Fira)
+    lc = next((net.comerciales[v] for v in net.vias_de(linea)
+               if v in net.comerciales and sid in net.comerciales[v].estaciones), None)
     if not lc:
         return None
     orden = [s for _d, s in lc.orden]
-    if sid not in orden:
-        return None
     i = orden.index(sid)
     dest = net.id_por_nombre(destino)
     if dest in orden:
@@ -579,12 +579,12 @@ HOLGURA_CANC = 300     # s: las últimas horas del horizonte no se exigen (puede
 
 def _lineas_del_par(net, sid: int, v: int) -> list[int]:
     """Líneas comerciales en cuyo trazado `sid` y `v` son consecutivas."""
-    out = []
-    for lid, lc in sorted(net.comerciales.items()):
+    out = set()
+    for lid, lc in net.comerciales.items():
         o = [s for _d, s in lc.orden]
         if sid in o and v in o and abs(o.index(sid) - o.index(v)) == 1:
-            out.append(lid)
-    return out
+            out.add(lc.variante_de or lid)     # una variante de ramal (41/42) es su línea (4)
+    return sorted(out)
 
 
 def cancelados_estacion(con, net, sid: int, dia: str, ahora: int | None = None,

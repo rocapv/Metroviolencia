@@ -157,8 +157,8 @@ def consultar_ruta(session, headers, verify, origen: int, destino: int) -> dict:
 def lineas_paso(net, s: int, t: int, vistas_en_s: set[int]) -> list[int]:
     """Líneas comerciales que pasan por S y por T. Si el tiempo real ve alguna
     de ellas en S, solo esas (descarta líneas que la red dibuja pero no paran)."""
-    comunes = [lid for lid, lc in net.comerciales.items()
-               if s in lc.estaciones and t in lc.estaciones]
+    comunes = sorted({lc.variante_de or lid for lid, lc in net.comerciales.items()
+                      if s in lc.estaciones and t in lc.estaciones})
     vistas = [l for l in comunes if l in vistas_en_s]
     return sorted(vistas or comunes)
 
