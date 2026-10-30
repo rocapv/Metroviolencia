@@ -26,11 +26,11 @@ en ruta y calculadora de rutas con los trenes en vivo que hay que coger.
    `data/service.json` añade cierres de tramo con fecha de caducidad
    (`hasta`), estaciones de retorno intermedias y tramos subterráneos.
 
-3. **Poller** (`backend/poller.py`). Cada **60 s** sondea las 144 estaciones
-   con 12 hilos en paralelo (~6 s por barrido) y guarda en SQLite
+3. **Poller** (`backend/poller.py`). Cada **120 s** (desde el 30/10/2026; antes 60 s) sondea las 144 estaciones
+   con 12 hilos en paralelo (~25 s por pasada, medido el 30/10/2026) y guarda en SQLite
    (`data/metro.db`): `snapshots`, `arrivals` (llegadas crudas), `noinfo`
    (líneas que no dieron ningún dato en la pasada) y `lecturas_fallidas`
-   (estación no leída o cabecera con panel vacío). Una vez por hora lanza en
+   (estación no leída, con su motivo `error:timeout`/`error:http503`/`error:conexion`…, o cabecera con panel vacío `vacia`). Una vez por hora lanza en
    segundo plano la descarga del horario de hoy y mañana y, una vez al día,
    la purga. TLS: `data/ca-bundle.pem` si existe, si no `truststore`.
    **Fuera del horario de servicio** (ninguna hora de paso programada a
@@ -92,7 +92,7 @@ en ruta y calculadora de rutas con los trenes en vivo que hay que coger.
 
 8. **API + frontend.** `backend/api.py` (FastAPI) sirve la API y `web/` como
    estático. `web/app.js` (Leaflet + MapLibre GL con teselas de OpenFreeMap;
-   raster OSM si no hay WebGL) pide `/api/trains` cada 60 s e interpola las
+   raster OSM si no hay WebGL) pide `/api/trains` cada 120 s e interpola las
    posiciones con el reloj corrigiendo latencia y desfase de reloj con el
    servidor; los tranvías cuyo `d` no cambia entre pasadas se congelan para no
    avanzar y recular. `web/panells.js` añade los paneles **Ruta** y
@@ -155,7 +155,7 @@ su control de acceso. El único `xfail` documenta que en datos reales hasta un
 
 `deploy/` tiene dos servicios systemd y la configuración de Apache:
 
-- `metroviolencia-poller.service`: `python -m backend.poller --interval 60`.
+- `metroviolencia-poller.service`: `python -m backend.poller --interval 120`.
 - `metroviolencia-web.service`: uvicorn en `127.0.0.1:8770` con
   `--root-path /metroviolencia`; nunca expuesto directamente.
 - `apache-metroviolencia.conf`: proxy inverso `/metroviolencia/` -> `:8770`

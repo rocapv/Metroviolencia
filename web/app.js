@@ -1,6 +1,6 @@
 /* Metroviolencia · frontend (valencià) — trens animats sobre la via */
 const API = "";
-const REFRESH_MS = 90000;   // refresc de seguretat; el normal el dispara el servidor (vigilaServidor)
+const REFRESH_MS = 150000;   // refresc de seguretat; el normal el dispara el servidor (vigilaServidor)
 const VIGILA_MS = 2000;     // cada quant es pregunta a /api/ultimo si hi ha pasada nova
 const ANIM_MS = 500;        // pas d'animació dels punts
 
@@ -819,13 +819,13 @@ window.marcadorEstacio = (id) => marcadorsEstacio.get(Number(id)) || null;
 function tickSegon() {
   document.getElementById("reloj-hora").textContent = new Date().toLocaleTimeString("ca-ES");
   // segons des de l'última lectura de FGV (snapshot del servidor, hora de la Raspa)
-  // i des de l'últim refresc d'aquest client; passats 150 s de FGV, en ambre
+  // i des de l'últim refresc d'aquest client; passats 180 s de FGV, en ambre (pasada cada 120 s)
   const fgv = document.getElementById("reloj-fgv");
   const cli = document.getElementById("reloj-cli");
   if (ultimoTs) {
     const s = Math.max(0, Math.floor(serverNow() / 1000) - (ultimoTsFin || ultimoTs));
     fgv.textContent = `FGV ${s} s`;
-    fgv.classList.toggle("reloj-vell", s > 150);
+    fgv.classList.toggle("reloj-vell", s > 180);
   }
   if (ultimoFetchMs) cli.textContent = `client ${Math.max(0, Math.floor((Date.now() - ultimoFetchMs) / 1000))} s`;
   const arrEls = document.querySelectorAll(".pop-arr .arr-eta");

@@ -62,8 +62,8 @@ HEADERS = {
     "Referer": "https://www.metrovalencia.es/ca/consulta-estaciones/",
     "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
 }
-INTERVAL = 60           # cadencia SIN clientes: 1 min (registro de salidas)
-INTERVAL_ACTIVO = 60    # cadencia CON cliente activo (1 min)
+INTERVAL = 120          # cadencia SIN clientes: 2 min (30/10/2026; antes 1 min)
+INTERVAL_ACTIVO = 120   # cadencia CON cliente activo (2 min; antes 1 min)
 INTERVAL_NOCHE = 600    # cadencia FUERA del horario de servicio: una pasada
                         # centinela cada 10 min (de madrugada el 74 % de las
                         # pasadas venían vacías: 144 peticiones para nada)
@@ -71,7 +71,7 @@ MARGEN_SERVICIO = 1200  # s: "hay servicio" si alguna hora de paso programada
                         # cae a menos de 20 min de ahora (antes/después)
 FORZAR_SERVICIO = 1800  # s: si una pasada centinela ve trenes, cadencia normal
                         # durante este tiempo (servicio especial o horario mal)
-CLIENTE_VENTANA = 130   # s: cliente "activo" si pidió datos hace menos de esto
+CLIENTE_VENTANA = 250   # s: cliente "activo" si pidió datos hace menos de esto
 WORKERS = 12            # estaciones en paralelo. Barrido: ~62s en serie -> ~22s.
                         # El techo lo pone Metrovalencia (~7 req/s por IP): subir
                         # workers da rendimientos decrecientes (24->20s, 32->17s)
@@ -226,16 +226,29 @@ def init_db() -> sqlite3.Connection:
     return con
 
 
-def fetch_station(session: requests.Session, sid: int) -> str | None:
+def fetch_station(session: requests.Session, sid: int) -> tuple[str | None, str]:
+    """(html, motivo): html None si la lectura falla; motivo dice por qué
+    ('error:timeout', 'error:conexion', 'error:http503', 'error:cuerpo'...)."""
     body = f"action=formularios_ajax&data=action%3Dinfo-estacion%26id%3D{sid}"
     try:
         r = session.post(AJAX_URL, data=body, headers=HEADERS, timeout=TIMEOUT,
                          verify=VERIFY)
-        if r.status_code == 200 and len(r.text) > 5:
-            return r.json().get("html")
-    except (requests.RequestException, ValueError):
-        return None
-    return None
+    except requests.Timeout:
+        return None, "error:timeout"
+    except requests.exceptions.SSLError:
+        return None, "error:tls"
+    except requests.ConnectionError:
+        return None, "error:conexion"
+    except requests.RequestException:
+        return None, "error:peticion"
+    if r.status_code != 200:
+        return None, f"error:http{r.status_code}"
+    if len(r.text) <= 5:
+        return None, "error:cuerpo"           # FGV contesta "0" o vacío
+    try:
+        return r.json().get("html"), ""
+    except ValueError:
+        return None, "error:json"
 
 
 def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
@@ -251,14 +264,14 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
     # así la cadencia de 60s con cliente activo entrega datos realmente frescos.
     # La concurrencia acotada hace de cortesía con el servidor (antes: REQ_PAUSE).
     def _one(sid: int):
-        return sid, fetch_station(session, sid)
+        return sid, *fetch_station(session, sid)
 
     with ThreadPoolExecutor(max_workers=WORKERS) as ex:
         resultados = ex.map(_one, list(net.estaciones))
     fallidas = []
-    for sid, html in resultados:
+    for sid, html, motivo in resultados:
         if html is None:
-            fallidas.append((snap_id, ts, sid))
+            fallidas.append((snap_id, ts, sid, motivo))
             continue
         ok += 1
         lleg = por_estacion.setdefault(sid, [])
@@ -268,7 +281,7 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
                 (snap_id, ts, sid, a.linea, a.destino, a.eta_seg, a.eta_txt, a.ocupacion)
             )
     # cabeceras leídas pero con el panel vacío: tampoco hay información
-    fallidas = [f + ("error",) for f in fallidas] + [
+    fallidas = fallidas + [
         (snap_id, ts, c["id"], "vacia") for c in CABECERAS
         if c["id"] in por_estacion and not por_estacion[c["id"]]]
     if fallidas:

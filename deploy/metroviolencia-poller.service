@@ -8,7 +8,7 @@ Type=simple
 User=roca
 WorkingDirectory=/home/roca/Metroviolencia
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/home/roca/Metroviolencia/.venv/bin/python -m backend.poller --interval 60
+ExecStart=/home/roca/Metroviolencia/.venv/bin/python -m backend.poller --interval 120
 Restart=always
 RestartSec=10
 
