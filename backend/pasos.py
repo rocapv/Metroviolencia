@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import sqlite3
 import threading
 import time
 
 from . import horarios
-from .salidas import _rango_dia, seguir
+from .salidas import HORIZONTE, _rango_dia, seguir
 
 VENTANA = 900          # s: un paso casa con una hora programada a <15 min
 MARGEN_AMBIG = 90      # s: si otra hora programada está casi igual de cerca -> ambiguo
@@ -567,6 +568,95 @@ def retraso_arribada(con, net, sid: int, linea: int, destino: str, ts_prev: int,
     if r is None:
         return None
     return {"retraso_s": r[1], "hora_prog": _hhmm(r[0])}
+
+
+# -------------------------------------------------- registros del día (popups)
+
+CASA_OBS = 150     # s: un paso observado en la estación es el del tren si dista menos de esto
+DESAPAREIX = 180   # s: una estación que deja los waypoints con más ETA que esto no se ha pasado
+
+
+def _fila_registro(con, net, sid: int, linea: int, destino: str, ts_paso: int,
+                   sent: dict, prog: dict, dudosos: set) -> dict:
+    """Una fila de registro: paso (real o previsto) frente a su hora programada."""
+    r = retraso_arribada(con, net, sid, linea, destino, ts_paso,
+                         sent.get((linea, destino)), prog, dudosos) if prog else None
+    return {"estacion_id": sid, "estacion": net.estaciones[sid].nombre,
+            "linea": linea, "destino": destino, "ts": ts_paso, "hora": _hhmm(ts_paso),
+            "hora_prog": r["hora_prog"] if r else None,
+            "retraso_s": r["retraso_s"] if r else None}
+
+
+def registro_estacion(con, net, sid: int, dia: str) -> list[dict]:
+    """Pasos reales del día por la estación `sid` (los de pasos_obs con estado
+    'salida'), cada uno con su hora programada y su desfase si casa sin
+    ambigüedad. Del más reciente al más antiguo."""
+    t0, t1 = _rango_dia(dia)
+    prog = _prog_dia(con, dia)
+    dudosos = incoherentes(con, net, dia) if prog else set()
+    sent = sentidos_inferidos(con, net, dia) if prog else {}
+    filas = con.execute(
+        "SELECT linea, destino, ts_salida FROM pasos_obs WHERE estado='salida' "
+        "AND ts_salida>=? AND ts_salida<? AND origen_id=? ORDER BY ts_salida DESC",
+        (t0, t1, sid)).fetchall()
+    return [_fila_registro(con, net, sid, l, d, ts, sent, prog, dudosos)
+            for l, d, ts in filas]
+
+
+def registro_tren(con, net, track_id: int, ahora: int | None = None) -> list[dict]:
+    """Paso por estación de UN tren (track_id) en el día, frente al horario.
+
+    Sale de su historial en `trenes`: cada pasada trae los waypoints (estaciones
+    por delante con su ETA). Una estación que estuvo por delante y ya no está,
+    la ha pasado: hora = la que daba la última pasada que la vio (ts + eta),
+    sin pasar de la pasada siguiente; si la estación registró el paso de ese
+    (línea, destino) a menos de CASA_OBS, manda ese paso observado. Las
+    estaciones aún por delante salen como 'previst'. En orden de paso."""
+    import bisect
+    ahora = ahora or int(time.time())
+    dia = dt.date.fromtimestamp(ahora).isoformat()
+    t0, t1 = _rango_dia(dia)
+    filas = con.execute(
+        "SELECT ts, linea, destino, waypoints FROM trenes WHERE track_id=? "
+        "AND ts>=? AND ts<? ORDER BY ts", (track_id, t0, t1)).fetchall()
+    if not filas:
+        return []
+    tss = [f[0] for f in filas]
+    vista: dict[tuple, tuple] = {}   # (sid, linea, destino) -> (ts, eta) de la última pasada que la vio
+    for ts, linea, destino, wps in filas:
+        for wp in json.loads(wps or "[]"):
+            nom, eta = wp.get("nom"), wp.get("eta")
+            if not nom or eta is None or eta >= HORIZONTE:
+                continue
+            sid = net.id_por_nombre(nom)
+            if sid is not None:
+                vista[(sid, linea, destino)] = (ts, eta)
+    ultima = tss[-1]
+    prog = _prog_dia(con, dia)
+    dudosos = incoherentes(con, net, dia) if prog else set()
+    sent = sentidos_inferidos(con, net, dia) if prog else {}
+    out = []
+    for (sid, linea, destino), (ts, eta) in vista.items():
+        previst = ts == ultima
+        if previst:
+            paso = ts + eta
+        else:
+            k = bisect.bisect_right(tss, ts)
+            if ts + eta > tss[k] + DESAPAREIX:
+                continue          # aún le faltaba: salió de sus waypoints por otro motivo
+            paso = min(ts + eta, tss[k])
+            obs = con.execute(
+                "SELECT ts_salida FROM pasos_obs WHERE estado='salida' AND origen_id=? "
+                "AND linea=? AND destino=? AND ts_salida BETWEEN ? AND ? "
+                "ORDER BY abs(ts_salida-?) LIMIT 1",
+                (sid, linea, destino, paso - CASA_OBS, paso + CASA_OBS, paso)).fetchone()
+            if obs:
+                paso = obs[0]
+        f = _fila_registro(con, net, sid, linea, destino, paso, sent, prog, dudosos)
+        f["previst"] = previst
+        out.append(f)
+    out.sort(key=lambda f: (f["previst"], f["ts"]))
+    return out
 
 
 # -------------------------------------------------------- cancelados del día

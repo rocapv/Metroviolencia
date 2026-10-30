@@ -203,6 +203,27 @@ html, body {
 .canc-hora { font-weight: 700; font-variant-numeric: tabular-nums; }
 .canc-row .pop-linea { margin-right: 2px; }
 .canc-cap { color: #f87171; opacity: 0.85; }
+/* registre del dia (estació: passos reals; tren: horari i pas per estació) */
+.pop-reg { margin-top: 8px; }
+.pop-reg summary {
+  cursor: pointer; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: #8a8a98; font-weight: 700; padding: 3px 0;
+}
+.pop-reg summary:hover { color: var(--txt); }
+.pop-reg-llista { max-height: 190px; overflow-y: auto; margin-top: 4px; }
+.reg-row {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 0;
+  border-top: 1px solid rgba(255,255,255,0.06); color: var(--txt);
+}
+.reg-row.reg-cap { border-top: 0; color: #8a8a98; font-size: 10.5px; position: sticky; top: 0; background: inherit; }
+.reg-h, .reg-p { width: 44px; flex: none; font-variant-numeric: tabular-nums; }
+.reg-h { font-weight: 700; }
+.reg-p { color: #9a9aac; }
+.reg-buit { visibility: hidden; }
+.reg-nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reg-row .pop-linea { margin-right: 0; }
+.reg-row.previst { opacity: 0.6; }
+.reg-row.previst .reg-h { font-weight: 400; }
 
 .link-registre { display: block; margin-top: 10px; font-size: 12px; color: var(--muted); }
 .link-registre:hover { color: var(--txt); }

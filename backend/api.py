@@ -202,6 +202,46 @@ def cancelats(estacio: int, dia: str | None = None):
     return res
 
 
+_reg_cache: dict[tuple, tuple[int, dict]] = {}   # (tipus, id) -> (snapshot, resposta)
+
+
+def _registre(clau: tuple, calcula) -> dict:
+    """Respuesta de un registro del día, cacheada hasta la próxima pasada."""
+    con = _con()
+    snap = _last_snapshot(con)
+    sid = snap["id"] if snap else 0
+    c = _reg_cache.get(clau)
+    if c and c[0] == sid:
+        return c[1]
+    try:
+        files = calcula(con)
+    except sqlite3.OperationalError:
+        files = []
+    res = {"ts": snap["ts"] if snap else None, "files": files}
+    for k in [k for k, v in _reg_cache.items() if v[0] != sid]:
+        _reg_cache.pop(k, None)               # solo se guarda la pasada actual
+    _reg_cache[clau] = (sid, res)
+    return res
+
+
+@app.get("/api/registre_estacio")
+def registre_estacio(estacio: int):
+    """Pasos reales de hoy por una estación frente a su hora programada."""
+    import datetime as dt
+    net = _net()
+    if estacio not in net.estaciones:
+        return JSONResponse({"error": "estación desconocida"}, status_code=400)
+    dia = dt.date.today().isoformat()
+    return _registre(("estacio", estacio),
+                     lambda con: pasos.registro_estacion(con, net, estacio, dia))
+
+
+@app.get("/api/registre_tren")
+def registre_tren(id: int):
+    """Paso por estación de un tren (track_id) hoy: horario frente a paso real."""
+    return _registre(("tren", id), lambda con: pasos.registro_tren(con, _net(), id))
+
+
 def _noinfo(con, snap_id: int) -> list:
     try:
         return [r["linea"] for r in con.execute(

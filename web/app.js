@@ -54,6 +54,9 @@ let estacionesRetorno = new Set(); // capçaleres/retorns on els trens descansen
 let lineLayers = {};               // lid -> [capes de via/connectors] per al toggle
 let porNomGlobal = {};             // nom estació -> objecte estació
 let arrivalsCache = { ts: 0, estaciones: {} };
+let popupEstacio = null;           // {estId, cont, popup} de l'estació oberta (es refresca a cada pasada)
+const registreCache = new Map();   // "tren:ID"/"estacio:ID" -> {ts de la pasada, files}
+const registreObert = new Set();   // registres desplegats (sobreviuen al refresc del popup)
 let rutaFiltre = null;             // Set d'ids de tren de la ruta activa (null = tots)
 
 // Compensació de ping/rellotge: el servidor (Raspa) marca el temps dels trens amb
@@ -448,10 +451,17 @@ function pintarTrenes(trenes) {
       // NO reposicionem ací: animar() suavitza la posició (e.dViz) cada frame,
       // així no es produeix cap salt al refrescar (ni cap avant ni cap arrere).
       best.marker.setPopupContent(popupTren(t));
-      if (best.marker.isPopupOpen() && window.xatOmpliPopup) window.xatOmpliPopup(best.marker.getPopup().getElement());
+      if (best.marker.isPopupOpen()) {
+        const el = best.marker.getPopup().getElement();
+        if (window.xatOmpliPopup) window.xatOmpliPopup(el);
+        lligaRegistres(el, best.marker.getPopup());
+      }
     } else {
       const marker = L.marker(ll, { icon: iconoTren(t) }).bindPopup(popupTren(t));
-      marker.on("popupopen", (ev) => { if (window.xatOmpliPopup) window.xatOmpliPopup(ev.popup.getElement()); });
+      marker.on("popupopen", (ev) => {
+        if (window.xatOmpliPopup) window.xatOmpliPopup(ev.popup.getElement());
+        lligaRegistres(ev.popup.getElement(), ev.popup);
+      });
       marker.addTo(trenLayer);
       nuevos.push({ marker, tren: t, usado: true, kRet: classeRetard(t) });
     }
@@ -527,6 +537,7 @@ function popupTren(t) {
     → <b>${t.destino}</b>${idTxt}${espera}<br>
     <span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>` +
     retardTren(t) +
+    (t.id != null ? seccioRegistre("tren:" + t.id, "Horari i pas per estació") : "") +
     (t.id != null ? `<div class="pop-xat" data-tipus="tren" data-lloc="${t.id}" data-nom="${NOMBRES_LINEA[t.linea] || "L" + t.linea} → ${t.destino}"></div>` : "");
 }
 
@@ -665,18 +676,107 @@ async function obrirPopupEstacio(m) {
     `<div class="pop-arr-tit">Pròximes arribades</div>` +
     `<div class="pop-arr">carregant…</div>` +
     `<div class="pop-canc"></div>` +
+    seccioRegistre("estacio:" + m.estId, "Registre del dia") +
     `<div class="pop-xat" data-tipus="estacio" data-lloc="${m.estId}" data-nom="${m.estNom}"></div>`;
   cont.querySelectorAll(".pop-ruta button").forEach((b) => b.onclick = () => {
     map.closePopup();
     if (window.rutaFixa) window.rutaFixa(b.dataset.r, m.estNom);
   });
-  L.popup({ maxWidth: 300, minWidth: 230 }).setLatLng(m.getLatLng()).setContent(cont).openOn(map);
-  if (serverNow() / 1000 - arrivalsCache.ts > 20) {
+  const popup = L.popup({ maxWidth: 300, minWidth: 230 }).setLatLng(m.getLatLng()).setContent(cont).openOn(map);
+  const obert = { estId: m.estId, cont, popup };
+  popupEstacio = obert;
+  popup.on("remove", () => { if (popupEstacio === obert) popupEstacio = null; });
+  if (window.xatOmpliPopup) window.xatOmpliPopup(cont);
+  await refrescaPopupEstacio(arrivalsCache.ts < (ultimoTs || 0) || serverNow() / 1000 - arrivalsCache.ts > 20);
+}
+
+// Estació oberta: a cada pasada nova es tornen a demanar les arribades (cauen
+// els trens que ja han passat i n'entren de nous), els cancel·lats i el registre.
+async function refrescaPopupEstacio(demana = true) {
+  const p = popupEstacio;
+  if (!p) return;
+  if (demana) {
     try { arrivalsCache = await (await fetch(API + "api/arrivals?_=" + Date.now(), { cache: "no-store" })).json(); } catch (e) {}
   }
-  pintarLlegadesPopup(cont.querySelector(".pop-arr"), m.estId);
-  if (window.xatOmpliPopup) window.xatOmpliPopup(cont);
-  pintarCancelatsPopup(cont.querySelector(".pop-canc"), m.estId);
+  if (popupEstacio !== p) return;
+  pintarLlegadesPopup(p.cont.querySelector(".pop-arr"), p.estId);
+  pintarCancelatsPopup(p.cont.querySelector(".pop-canc"), p.estId);
+  lligaRegistres(p.cont, p.popup);
+}
+
+/* ---------- registres del dia (estació i tren) ---------- */
+// Secció desplegable; el contingut es demana en obrir-la i a cada pasada nova
+// mentre està oberta. L'estat obert/tancat va per clau, perquè el popup del
+// tren es reconstrueix a cada refresc.
+function seccioRegistre(clau, titol) {
+  const obert = registreObert.has(clau) ? " open" : "";
+  return `<details class="pop-reg" data-clau="${clau}"${obert}><summary>${titol}</summary>` +
+    `<div class="pop-reg-llista">carregant…</div></details>`;
+}
+
+function lligaRegistres(el, popup) {
+  if (!el) return;
+  el.querySelectorAll("details.pop-reg").forEach((d) => {
+    if (!d.dataset.lligat) {
+      d.dataset.lligat = "1";
+      d.addEventListener("toggle", () => {
+        if (d.open) registreObert.add(d.dataset.clau); else registreObert.delete(d.dataset.clau);
+        if (d.open) omplirRegistre(d, popup); else if (popup) popup.update();
+      });
+    }
+    if (d.open) omplirRegistre(d, popup);
+  });
+}
+
+async function omplirRegistre(d, popup) {
+  const clau = d.dataset.clau;
+  const [tipus, id] = clau.split(":");
+  let c = registreCache.get(clau);
+  if (!c || c.ts < (ultimoTs || 0)) {
+    try {
+      const param = tipus === "tren" ? "id" : "estacio";
+      const j = await (await fetch(`${API}api/registre_${tipus}?${param}=${id}&_=${Date.now()}`,
+        { cache: "no-store" })).json();
+      c = { ts: j.ts || ultimoTs || 0, files: j.files || [] };
+      registreCache.set(clau, c);
+    } catch (e) {
+      if (!c) { d.querySelector(".pop-reg-llista").textContent = "sense connexió"; return; }
+    }
+  }
+  if (!d.isConnected) return;
+  const llista = d.querySelector(".pop-reg-llista");
+  const scroll = llista.dataset.pintat ? llista.scrollTop : null;
+  llista.innerHTML = tipus === "tren" ? htmlRegistreTren(c.files) : htmlRegistreEstacio(c.files);
+  llista.dataset.pintat = "1";
+  if (popup) popup.update();
+  if (scroll != null) llista.scrollTop = scroll;
+  else if (tipus === "tren") {           // primera vegada: a la frontera passat/previst
+    const prev = llista.querySelector(".reg-row.previst");
+    if (prev) llista.scrollTop = Math.max(0, prev.offsetTop - llista.offsetTop - 70);
+  }
+}
+
+function chipLinia(l) {
+  return `<span class="pop-linea" style="background:#${colores[l] || "888"}">${NOMBRES_LINEA[l] || "L" + l}</span>`;
+}
+
+const REG_BUIT = '<span class="ruta-desf arr-desf reg-buit"></span>';
+
+function htmlRegistreEstacio(files) {
+  if (!files.length) return "<div class='pop-buida'>cap pas registrat hui</div>";
+  return `<div class="reg-row reg-cap"><span class="reg-h">pas</span><span class="reg-p">horari</span></div>` +
+    files.map((f) => `<div class="reg-row">
+      <span class="reg-h">${f.hora}</span><span class="reg-p">${f.hora_prog || "—"}</span>
+      ${desfaseArribada(f) || REG_BUIT}${chipLinia(f.linea)}
+      <span class="reg-nom">→ ${f.destino}</span></div>`).join("");
+}
+
+function htmlRegistreTren(files) {
+  if (!files.length) return "<div class='pop-buida'>encara sense registre hui</div>";
+  return `<div class="reg-row reg-cap"><span class="reg-h">pas</span><span class="reg-p">horari</span></div>` +
+    files.map((f) => `<div class="reg-row${f.previst ? " previst" : ""}" title="${f.previst ? "previst" : "ja ha passat"}">
+      <span class="reg-h">${f.previst ? "~" : ""}${f.hora}</span><span class="reg-p">${f.hora_prog || "—"}</span>
+      ${desfaseArribada(f) || REG_BUIT}<span class="reg-nom">${f.estacion}</span></div>`).join("");
 }
 
 // desfase breu d'una arribada respecte a la seua hora programada de pas:
@@ -690,8 +790,9 @@ function desfaseArribada(r) {
 }
 
 function pintarLlegadesPopup(el, estId) {
-  const arr = (arrivalsCache.estaciones || {})[estId] || [];
   const passat = Math.max(0, Math.floor(serverNow() / 1000) - (arrivalsCache.ts || 0));
+  // fora els trens que ja han passat (30 s de marge: «ara» mentre està a l'andana)
+  const arr = ((arrivalsCache.estaciones || {})[estId] || []).filter((a) => a.eta_seg - passat > -30);
   if (!arr.length) { el.innerHTML = "<div class='pop-buida'>sense pròximes arribades</div>"; return; }
   el.innerHTML = arr.slice(0, 6).map((a) => {
     const c = "#" + (colores[a.linea] || "888");
@@ -784,6 +885,7 @@ async function refrescar() {
     actualitzaCongelats(ultimoTrenes);
     pintarTrenes(ultimoTrenes);
     pintarNoinfo();
+    refrescaPopupEstacio();
     if (window.refrescaPanells) window.refrescaPanells();
     const edad = data.edad_seg == null ? "—" : data.edad_seg + " s";
     const ni = noinfo.length ? `<br><span style="color:#e8c07a">sense info: ${noinfo.map(l=>"L"+l).join(", ")}</span>` : "";
@@ -828,11 +930,7 @@ function tickSegon() {
     fgv.classList.toggle("reloj-vell", s > 180);
   }
   if (ultimoFetchMs) cli.textContent = `client ${Math.max(0, Math.floor((Date.now() - ultimoFetchMs) / 1000))} s`;
-  const arrEls = document.querySelectorAll(".pop-arr .arr-eta");
-  if (arrEls.length) {
-    const passat = Math.max(0, Math.floor(serverNow() / 1000) - (arrivalsCache.ts || 0));
-    arrEls.forEach((el) => { el.textContent = fmtEta(Math.max(0, parseInt(el.dataset.eta, 10) - passat)); });
-  }
+  if (popupEstacio) pintarLlegadesPopup(popupEstacio.cont.querySelector(".pop-arr"), popupEstacio.estId);
 }
 
 // panell colapsable a un lateral

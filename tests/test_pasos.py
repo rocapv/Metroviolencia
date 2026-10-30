@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import statistics
 
 import pytest
@@ -395,3 +396,70 @@ def test_retrasos_reales_quitan_solo_pares_incoherentes(net, bd_real, extracto):
     finales = retrasos(bd_real.con, net, dia)
     assert len(finales) == len([f for f in crudos if (f["estacion_id"], f["hacia_id"]) not in malos])
     assert all((f["estacion_id"], f["hacia_id"]) not in malos for f in finales)
+
+
+# --------------------------------------------------- registros del día (popups)
+
+def test_registro_estacion_escenario(net, escenario, monkeypatch):
+    monkeypatch.setitem(pasos._incoh_cache, DIA, set())
+    filas = pasos.registro_estacion(escenario["con"], net, escenario["A"], DIA)
+    h = escenario["h"]
+    # los dos pasos por A, del más reciente al más antiguo
+    assert [f["ts"] for f in filas] == [h(10, 5), h(10, 2)]
+    bet = filas[1]
+    assert bet["destino"] == BETERA and bet["hora"] == "10:02"
+    assert bet["hora_prog"] == "10:00" and bet["retraso_s"] == 120
+    # sentido Castelló: sin horario hacia o[9] -> sin hora programada
+    assert filas[0]["hora_prog"] is None and filas[0]["retraso_s"] is None
+    assert pasos.registro_estacion(escenario["con"], net, escenario["C"], "2026-03-11") == []
+
+
+def _tren_en(con, ts, wps, track=77, destino=BETERA):
+    con.execute("INSERT INTO trenes(snapshot_id,ts,track_id,linea,destino,waypoints)"
+                " VALUES (?,?,?,?,?,?)", (ts, ts, track, L1, destino, json.dumps(wps)))
+
+
+def test_registro_tren_pasadas_y_previstas(net, escenario, monkeypatch):
+    monkeypatch.setitem(pasos._incoh_cache, DIA, set())
+    con, h = escenario["con"], escenario["h"]
+    o = _orden(net)
+    nom = lambda s: net.estaciones[s].nombre  # noqa: E731
+    A, B = escenario["A"], escenario["B"]
+    t1, t2 = h(9, 58), h(10, 0)
+    # 1ª pasada: A a 3 min, B a 5 min y una lejana a 50 min
+    _tren_en(con, t1, [{"d": 0, "eta": 0}, {"d": 1, "eta": 180, "nom": nom(A)},
+                       {"d": 2, "eta": 300, "nom": nom(B)}, {"d": 9, "eta": 3000, "nom": nom(o[-1])}])
+    # 2ª pasada (2 min después): A ya no está; B a 1 min; la lejana se cayó de sus waypoints
+    _tren_en(con, t2, [{"d": 1.5, "eta": 0}, {"d": 2, "eta": 60, "nom": nom(B)}])
+    con.commit()
+    filas = pasos.registro_tren(con, net, 77, ahora=t2 + 30)
+    assert [(f["estacion_id"], f["previst"]) for f in filas] == [(A, False), (B, True)]
+    a = filas[0]
+    # A pasó: manda el paso observado (10:02, horario 10:00) sobre la estimación (t1+180)
+    assert a["ts"] == h(10, 2) and a["hora_prog"] == "10:00" and a["retraso_s"] == 120
+    assert filas[1]["ts"] == t2 + 60
+    assert pasos.registro_tren(con, net, 999, ahora=t2) == []
+
+
+def test_registros_sobre_una_hora_real(net, bd_real, extracto, monkeypatch):
+    dia = extracto["meta"]["dia"]
+    monkeypatch.setitem(pasos._incoh_cache, dia, set())
+    con = bd_real.con
+    sid = max({p["origen_id"] for p in extracto["pasos_obs"]},
+              key=lambda s: sum(p["origen_id"] == s for p in extracto["pasos_obs"]))
+    est = pasos.registro_estacion(con, net, sid, dia)
+    assert est and [f["ts"] for f in est] == sorted((f["ts"] for f in est), reverse=True)
+    assert all(f["estacion_id"] == sid for f in est)
+    assert any(f["retraso_s"] is not None for f in est)
+    ultimo = max(t["ts"] for t in extracto["trenes"])
+    tracks = {t["track_id"] for t in extracto["trenes"] if t["snapshot_id"] == 31114}
+    n_pasadas = 0
+    for tid in tracks:
+        filas = pasos.registro_tren(con, net, tid, ahora=ultimo)
+        # primero lo pasado, luego lo previsto, cada parte en orden de paso
+        assert filas == sorted(filas, key=lambda f: (f["previst"], f["ts"]))
+        prev = [f["previst"] for f in filas]
+        n_pasadas += sum(not p for p in prev)
+        for f in filas:
+            assert f["retraso_s"] is None or abs(f["retraso_s"]) <= VENTANA
+    assert n_pasadas > 0          # el extracto solo trae 2 pasadas de trenes

@@ -402,3 +402,14 @@ def test_xat_recorta_texto_y_alias(cliente, xat_net):
 
 def test_xat_fuera_de_la_lan_sin_token_es_403(cliente, xat_net):
     assert cliente.post("/api/xat", json={"tipus": "estacio", "lloc": 67, "text": "hola"}, headers=FUERA).status_code == 403
+
+
+def test_registres_del_dia(cliente, monkeypatch):
+    monkeypatch.setattr(api, "_reg_cache", {})
+    r = cliente.get("/api/registre_estacio?estacio=67", headers=LAN)
+    assert r.status_code == 200 and isinstance(r.json()["files"], list)
+    assert cliente.get("/api/registre_estacio?estacio=999999", headers=LAN).status_code == 400
+    r = cliente.get("/api/registre_tren?id=295034", headers=LAN)
+    assert r.status_code == 200 and isinstance(r.json()["files"], list)
+    assert cliente.get("/api/registre_tren?id=x", headers=LAN).status_code == 422
+    assert cliente.get("/api/registre_tren?id=1", headers=FUERA).status_code == 403
