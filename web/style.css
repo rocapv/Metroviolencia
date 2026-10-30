@@ -371,3 +371,39 @@ html, body {
 }
 .leaflet-tooltip.xat-bombolla::before { border-top-color: var(--viol); }
 @keyframes xat-apareix { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* «Quant tarda a… / avisa'm» (desti.js) */
+.pop-desti { margin: 8px 0 2px; }
+.pop-desti button, #desti-banner button, .desti-acc button {
+  font: inherit; font-size: 12px; color: #fff; background: #2a2a36;
+  border: 1px solid #ffffff22; border-radius: 6px; padding: 3px 8px; cursor: pointer;
+}
+.desti-acc button.primari { background: var(--viol); border-color: var(--viol); }
+.desti-acc button.primari.on { background: #2a2a36; border-color: var(--viol); }
+/* mentre es tria l'estació, els trens no reben clics: només les estacions */
+body.mode-desti .leaflet-marker-pane .leaflet-marker-icon { pointer-events: none !important; }
+body.mode-desti #map { cursor: crosshair; }
+.leaflet-marker-icon.desti-sel { filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 8px var(--viol)); }
+#desti-banner {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1200;
+  display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px);
+  background: var(--panel); color: var(--txt); border: 1px solid var(--viol);
+  border-radius: 10px; padding: 6px 10px; font-size: 13px; backdrop-filter: blur(6px);
+}
+#desti-card {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 1150;
+  width: min(340px, calc(100vw - 32px)); background: var(--panel); color: var(--txt);
+  border: 1px solid #ffffff22; border-radius: 10px; padding: 8px 10px; font-size: 13px;
+  backdrop-filter: blur(6px); line-height: 1.5;
+}
+.desti-hora { color: var(--muted); }
+.desti-acc { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.desti-acc #desti-tanca { margin-left: auto; }
+#desti-toast {
+  position: fixed; right: 16px; bottom: 16px; z-index: 1250; max-width: calc(100vw - 32px);
+  background: var(--panel); color: var(--txt); border-left: 3px solid var(--viol);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px; backdrop-filter: blur(6px);
+  transition: opacity 0.6s; opacity: 1;
+}
+#desti-toast.fora { opacity: 0; }
+@media (max-width: 600px) { #desti-toast { left: 16px; right: 16px; bottom: 120px; } }

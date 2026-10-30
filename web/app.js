@@ -454,12 +454,14 @@ function pintarTrenes(trenes) {
       if (best.marker.isPopupOpen()) {
         const el = best.marker.getPopup().getElement();
         if (window.xatOmpliPopup) window.xatOmpliPopup(el);
+        if (window.lligaDesti) window.lligaDesti(el);
         lligaRegistres(el, best.marker.getPopup());
       }
     } else {
       const marker = L.marker(ll, { icon: iconoTren(t) }).bindPopup(popupTren(t));
       marker.on("popupopen", (ev) => {
         if (window.xatOmpliPopup) window.xatOmpliPopup(ev.popup.getElement());
+        if (window.lligaDesti) window.lligaDesti(ev.popup.getElement());
         lligaRegistres(ev.popup.getElement(), ev.popup);
       });
       marker.addTo(trenLayer);
@@ -537,6 +539,7 @@ function popupTren(t) {
     → <b>${t.destino}</b>${idTxt}${espera}<br>
     <span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>` +
     retardTren(t) +
+    (t.id != null ? `<div class="pop-desti"><button data-desti="${t.id}">Quant tarda a… · avisa'm</button></div>` : "") +
     (t.id != null ? seccioRegistre("tren:" + t.id, "Horari i pas per estació") : "") +
     (t.id != null ? `<div class="pop-xat" data-tipus="tren" data-lloc="${t.id}" data-nom="${NOMBRES_LINEA[t.linea] || "L" + t.linea} → ${t.destino}"></div>` : "");
 }
@@ -665,6 +668,7 @@ function animar() {
 
 /* ---------- popup d'estació ---------- */
 async function obrirPopupEstacio(m) {
+  if (window.destiTriaEstacio && window.destiTriaEstacio(m)) return;   // s'estava triant destí d'un tren
   const chips = m.estLineas
     .map((l) => `<span class="pop-linea" style="background:#${colores[l] || "888"}">${NOMBRES_LINEA[l] || "L" + l}</span>`)
     .join("");
@@ -886,6 +890,7 @@ async function refrescar() {
     pintarTrenes(ultimoTrenes);
     pintarNoinfo();
     refrescaPopupEstacio();
+    if (window.destiRefresc) window.destiRefresc();
     if (window.refrescaPanells) window.refrescaPanells();
     const edad = data.edad_seg == null ? "—" : data.edad_seg + " s";
     const ni = noinfo.length ? `<br><span style="color:#e8c07a">sense info: ${noinfo.map(l=>"L"+l).join(", ")}</span>` : "";
