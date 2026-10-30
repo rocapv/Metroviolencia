@@ -161,33 +161,37 @@ su control de acceso. El único `xfail` documenta que en datos reales hasta un
 - `apache-metroviolencia.conf`: proxy inverso `/metroviolencia/` -> `:8770`
   (ruta heredada, ver más abajo). En 80, 443, 5580 y 8751 queda abierto y es el
   token de la API quien cierra el paso desde fuera de la LAN.
-- `metroviolencia.pr1.es.conf` / `metroviolencia.pr1.es-ssl.conf`: el vhost del
-  subdominio propio (ver más abajo).
+- `metro.pr1.es.conf` / `metro.pr1.es-ssl.conf`: el vhost del subdominio
+  propio (ver más abajo).
+- `metroviolencia.pr1.es.conf` / `metroviolencia.pr1.es-ssl.conf`: el nombre
+  antiguo; solo redirige (301, con ruta y query) a `https://metro.pr1.es/`.
 
 Acceso en la LAN: `http://192.168.1.100/metroviolencia/`. Fuera de la LAN,
 con token.
 
-### Subdominio propio: `https://metroviolencia.pr1.es/`
+### Subdominio propio: `https://metro.pr1.es/`
 
 Desde el 05/10/2026 la aplicación cuelga también de la **raíz** de su propio
-nombre. Es la dirección que hay que dar a quien la use; la ruta
+nombre; hasta el 30/10/2026 fue `metroviolencia.pr1.es`, que ahora redirige al
+nombre nuevo (sigue en el DDNS y con su certificado para que la redirección
+funcione). Es la dirección que hay que dar a quien la use; la ruta
 `/metroviolencia/` queda como herencia (ver más abajo). El acceso lo decide la
 aplicación, no Apache (hoy sin token, ver «Acceso» arriba).
 
-- **DNS**: registro A `metroviolencia` en la zona `pr1.es` (TTL 60) que mantiene
+- **DNS**: registro A `metro` en la zona `pr1.es` (TTL 60) que mantiene
   el DDNS de Raspa (`~/ddns_ovh/ddns_ovh.py`, lista `REGISTROS`): si la IP
   pública cambia, se reescribe solo. El DDNS **no crea** registros; si se borra,
   se da de alta a mano con la API de OVH (`POST /domain/zone/pr1.es/record`,
-  `fieldType=A`, `subDomain=metroviolencia`, `ttl=60`, y `POST .../refresh`).
-- **Apache** (`sites-available/` + `a2ensite`): `metroviolencia.pr1.es.conf`
-  (:80, sirve el reto ACME y redirige a HTTPS) y `metroviolencia.pr1.es-ssl.conf`
+  `fieldType=A`, `subDomain=metro`, `ttl=60`, y `POST .../refresh`).
+- **Apache** (`sites-available/` + `a2ensite`): `metro.pr1.es.conf`
+  (:80, sirve el reto ACME y redirige a HTTPS) y `metro.pr1.es-ssl.conf`
   (:443, proxy de `/` a `127.0.0.1:8770`). El `/api/` hay que ganarlo con un
   `<Location /api/>` propio dentro del vhost: `director-ocr.conf` declara uno
   global que, si no, se lleva el `/api` de todos los sitios a la API OCR del
   Director.
-- **Certificado**: Let's Encrypt (ECDSA, webroot `/var/www/metroviolencia.pr1.es`,
+- **Certificado**: Let's Encrypt (ECDSA, webroot `/var/www/metro.pr1.es`,
   renovación por `certbot.timer`). Con el vhost :80 ya activo:
-  `sudo certbot certonly --webroot -w /var/www/metroviolencia.pr1.es -d metroviolencia.pr1.es --key-type ecdsa`
+  `sudo certbot certonly --webroot -w /var/www/metro.pr1.es -d metro.pr1.es --key-type ecdsa`
 - **Cookie del token** (solo si se vuelve a exigir token): aquí la app cuelga de la raíz, no de `/metroviolencia`,
   así que el vhost manda `X-Forwarded-Prefix: /` y `X-Forwarded-Proto: https` y
   `backend/api.py` fija la cookie con `Path=/` y `Secure` (en la ruta heredada
@@ -208,7 +212,7 @@ medido desde fuera de la LAN el 05/10/2026:
   reenvía); solo valdría en la LAN.
 
 Reconstruir la APK necesita el token (solo está en Raspa, `data/token.txt`).
-Para que use el subdominio: `BASE_EXT_HTTPS=https://metroviolencia.pr1.es/
+Para que use el subdominio: `BASE_EXT_HTTPS=https://metro.pr1.es/
 apk/build_apk.sh` (el certificado de Let's Encrypt es de confianza: no hace
 falta empaquetar ninguno). Está pendiente.
 

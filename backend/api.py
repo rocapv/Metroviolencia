@@ -40,7 +40,7 @@ TOKEN_FILE = ROOT / "data" / "token.txt"
 CLIENT_FILE = ROOT / "data" / "last_client.txt"  # señal de "hay cliente activo"
 OPEN_FILE = ROOT / "data" / "open_until.txt"      # ventana temporal SIN token
 
-app = FastAPI(title="Metroviolencia", version="0.1")
+app = FastAPI(title="Metro", version="0.1")
 
 
 def _touch_client() -> None:
@@ -106,7 +106,7 @@ async def auth_token(request: Request, call_next):
         resp = await call_next(request)
         if q == token:   # primer acceso externo con token en la URL: fija cookie
             # En la ruta heredada (home.pr1.es:5580/metroviolencia/) la app cuelga de
-            # /metroviolencia; en metroviolencia.pr1.es cuelga de la raíz y su vhost de
+            # /metroviolencia; en metro.pr1.es cuelga de la raíz y su vhost de
             # Apache manda X-Forwarded-Prefix: "/" (y X-Forwarded-Proto: https -> Secure).
             raiz = request.headers.get("x-forwarded-prefix") == "/"
             resp.set_cookie("mvtoken", token, max_age=31536000,
