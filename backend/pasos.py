@@ -342,7 +342,7 @@ def sentidos_inferidos(con, net, dia: str) -> dict[tuple[int, str], int]:
     por: dict[tuple[int, str], list[tuple[int, int]]] = {}
     for sid, linea, destino, tp in con.execute(
             "SELECT origen_id, linea, destino, ts_salida FROM pasos_obs "
-            "WHERE estado='salida' AND ts_salida>=? AND ts_salida<?", (t0 - 86400, t1)):
+            "WHERE +estado='salida' AND ts_salida>=? AND ts_salida<?", (t0 - 86400, t1)):
         d = net.id_por_nombre(destino)
         if linea in idx and d not in idx[linea] and sid in idx[linea]:
             fuera.add((linea, destino))
@@ -442,7 +442,7 @@ def _crudos(con, net, dia: str) -> list[dict]:
     grupos: dict[tuple[int, int], list[tuple]] = {}
     for sid, linea, destino, tpaso in con.execute(
             "SELECT origen_id, linea, destino, ts_salida FROM pasos_obs "
-            "WHERE estado='salida' AND ts_salida>=? AND ts_salida<?", (t0, t1)):
+            "WHERE +estado='salida' AND ts_salida>=? AND ts_salida<?", (t0, t1)):
         v = _vecina(net, linea, sid, destino, sent.get((linea, destino)))
         if v is not None and (sid, v) in prog:
             grupos.setdefault((sid, v), []).append((tpaso, linea, destino))
@@ -596,7 +596,7 @@ def registro_estacion(con, net, sid: int, dia: str) -> list[dict]:
     dudosos = incoherentes(con, net, dia) if prog else set()
     sent = sentidos_inferidos(con, net, dia) if prog else {}
     filas = con.execute(
-        "SELECT linea, destino, ts_salida FROM pasos_obs WHERE estado='salida' "
+        "SELECT linea, destino, ts_salida FROM pasos_obs WHERE +estado='salida' "
         "AND ts_salida>=? AND ts_salida<? AND origen_id=? ORDER BY ts_salida DESC",
         (t0, t1, sid)).fetchall()
     return [_fila_registro(con, net, sid, l, d, ts, sent, prog, dudosos)
@@ -646,7 +646,7 @@ def registro_tren(con, net, track_id: int, ahora: int | None = None) -> list[dic
                 continue          # aún le faltaba: salió de sus waypoints por otro motivo
             paso = min(ts + eta, tss[k])
             obs = con.execute(
-                "SELECT ts_salida FROM pasos_obs WHERE estado='salida' AND origen_id=? "
+                "SELECT ts_salida FROM pasos_obs WHERE +estado='salida' AND origen_id=? "   # +estado: índice por hora
                 "AND linea=? AND destino=? AND ts_salida BETWEEN ? AND ? "
                 "ORDER BY abs(ts_salida-?) LIMIT 1",
                 (sid, linea, destino, paso - CASA_OBS, paso + CASA_OBS, paso)).fetchone()

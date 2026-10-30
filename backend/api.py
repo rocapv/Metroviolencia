@@ -372,6 +372,19 @@ def _precalienta():
     except Exception:  # noqa: BLE001
         pass
 
+    def _horari():
+        # horario de paso y sentidos del día en memoria (~5 s en la Raspa): que no
+        # los pague el primer popup que pida un registro
+        try:
+            con = _con()
+            dia = dt.date.today().isoformat()
+            pasos._prog_dia(con, dia)
+            pasos.sentidos_inferidos(con, _net(), dia)
+        except Exception:  # noqa: BLE001
+            pass
+    import threading
+    threading.Thread(target=_horari, daemon=True).start()
+
 
 _net_cache = None
 _sesion = None
