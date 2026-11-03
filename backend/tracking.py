@@ -194,3 +194,47 @@ def track(curr: list, prev: list, dt: float, next_id: int, vias: dict | None = N
             ids[i] = next_id
             next_id += 1
     return ids, next_id
+
+
+def herencias(acaban: list, esperan: list) -> dict:
+    """Un tren que da la vuelta en cabecera es el MISMO tren: conserva su número.
+
+    FGV anuncia la próxima salida de una cabecera mucho antes de que llegue el
+    tren que la hará, así que ese tren «en espera» ya tiene id propio mientras
+    el que llega aún circula. Cuando el que llega ACABA su viaje en S, el que
+    espera en S pasa a llevar su número.
+
+    acaban:  trenes que esta pasada dejaron de verse llegando a su destino S:
+             [{track_id, linea, destino}].
+    esperan: trenes en espera (origen) que solo han estado en espera (aún no
+             han heredado ni circulado): [{track_id, linea, cabecera, eta}].
+
+    Prioridad: misma línea; si no, cualquiera (en València Sud o Empalme un
+    tren sigue con otra línea). Entre los que esperan, el que sale antes.
+    Devuelve {id_en_espera: id_heredado}."""
+    libres = sorted(esperan, key=lambda e: e["eta"])
+    out = {}
+    for a in acaban:
+        en = [e for e in libres if e["cabecera"] == a["destino"]]
+        e = next((e for e in en if e["linea"] == a["linea"]), en[0] if en else None)
+        if e is not None:
+            out[e["track_id"]] = a["track_id"]
+            libres.remove(e)
+    return out
+
+
+ACABA_M = 4000   # m: a menos de esto de su destino, un tren que deja de verse ha acabado el viaje
+
+
+def llega_a_destino(net, linea: int, via: int, destino: str, waypoints: list) -> bool:
+    """¿Estaba el tren a menos de ACABA_M de su destino sobre su vía? La
+    cabecera solo anuncia SALIDAS: el tren que llega deja de verse en la
+    penúltima estación, no en la última."""
+    if not waypoints:
+        return False
+    sid = net.id_por_nombre(destino)
+    lc = net.comerciales.get(via) or net.comerciales.get(linea)
+    if sid is None or lc is None:
+        return False
+    d_dest = next((d for d, s in lc.orden if s == sid), None)
+    return d_dest is not None and abs(d_dest - waypoints[0]["d"]) <= ACABA_M

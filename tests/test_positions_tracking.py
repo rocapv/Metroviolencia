@@ -339,3 +339,26 @@ def test_l4_trenes_de_ramal_sobre_su_estacion(net, extracto):
             lc = net.comerciales[t.via]
             la, ln = lc.dist_to_latlng(t.waypoints[0]["d"])
             assert abs(la - t.lat) < 1e-6 and abs(ln - t.lng) < 1e-6
+
+
+def test_herencia_en_cabecera_misma_linea_y_el_que_sale_antes():
+    from backend.tracking import herencias
+    acaban = [{"track_id": 10, "linea": 1, "destino": "Bétera"}]
+    esperan = [{"track_id": 20, "linea": 1, "cabecera": "Bétera", "eta": 900},
+               {"track_id": 21, "linea": 1, "cabecera": "Bétera", "eta": 300},
+               {"track_id": 22, "linea": 2, "cabecera": "Bétera", "eta": 60},
+               {"track_id": 23, "linea": 1, "cabecera": "Castelló", "eta": 30}]
+    assert herencias(acaban, esperan) == {21: 10}
+    # sin ninguno de su línea, cualquiera que espere allí
+    assert herencias([{"track_id": 5, "linea": 7, "destino": "Bétera"}], esperan) == {22: 5}
+    assert herencias([{"track_id": 5, "linea": 1, "destino": "Llíria"}], esperan) == {}
+
+
+def test_llega_a_destino(net):
+    from backend.tracking import llega_a_destino
+    lc = net.comerciales[1]
+    d_fin, s_fin = lc.orden[-1]
+    nom = net.estaciones[s_fin].nombre
+    assert llega_a_destino(net, 1, 1, nom, [{"d": d_fin - 1500, "eta": 0}])
+    assert not llega_a_destino(net, 1, 1, nom, [{"d": d_fin - 20000, "eta": 0}])
+    assert not llega_a_destino(net, 1, 1, "No existeix", [{"d": d_fin, "eta": 0}])
