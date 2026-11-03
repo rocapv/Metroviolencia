@@ -40,10 +40,17 @@ def predict_d(waypoints: list, tau: float):
 
 
 def _tol(dt: float) -> float:
-    """Tolerancia (m) sobre el intervalo plausible: sólo cubre el ruido del
+    """Tolerancia (m) sobre el intervalo plausible: cubre el ruido del
     estimador y el error de predicción (NO el desplazamiento del tren, que ya
-    está dentro del intervalo). Crece un poco con Δt."""
-    return 200.0 + 0.5 * max(0.0, dt)
+    está dentro del intervalo). Crece con Δt.
+
+    03/11/2026: era 200 + 0,5·Δt (260 m a 120 s) y, con la pasada cada 120 s,
+    el mismo tren caía fuera 1.245 veces en 6 h y recibía id nuevo (2.244 ids
+    para ~100 trenes). Reproducido sobre esas 6 h: 1000 + 8·Δt (1.960 m a
+    120 s) deja 928 ids, de vida mediana 14 pasadas en vez de 4. No cruza
+    trenes: _alinear casa en orden sobre la vía, y dos trenes de la misma
+    línea y destino van a varios km."""
+    return 1000.0 + 8.0 * max(0.0, dt)
 
 
 def _coste(lo: float, hi: float, cd: float) -> float:

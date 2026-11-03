@@ -256,8 +256,10 @@ def test_estimar_reproduce_los_trenes_guardados_en_raspa(net, extracto, snap):
 
 
 def test_track_reproduce_los_track_id_guardados_en_raspa(extracto):
-    """Dos pasadas consecutivas reales (60 s): track() vuelve a asignar los
-    mismos track_id que quedaron en la tabla `trenes`."""
+    """Dos pasadas consecutivas reales (60 s): todo tren que conservó su
+    track_id en la tabla `trenes` lo sigue conservando. Desde el 03/11/2026 la
+    tolerancia es más ancha (ver tracking._tol), así que además puede
+    conservarlo alguno que entonces recibió un id nuevo; nunca al revés."""
     prev_rows = _trenes_snapshot(extracto, 31113)
     curr_rows = _trenes_snapshot(extracto, 31114)
     prev = [{"track_id": t["track_id"], "linea": t["linea"], "destino": t["destino"],
@@ -269,8 +271,12 @@ def test_track_reproduce_los_track_id_guardados_en_raspa(extracto):
     ids_prev = {p["track_id"] for p in prev}
     nuevos = [t["track_id"] for t in curr_rows if t["track_id"] not in ids_prev]
     ids, next_id = track(curr, prev, float(dt), min(nuevos))
-    assert ids == [t["track_id"] for t in curr_rows]
-    assert next_id == max(nuevos) + 1
+    guardados = [t["track_id"] for t in curr_rows]
+    for i, g in zip(ids, guardados):
+        if g in ids_prev:
+            assert i == g                     # el que se conservaba, se conserva igual
+    assert len(set(ids)) == len(ids)          # nunca dos trenes con el mismo id
+    assert next_id <= max(nuevos) + 1
 
     # identidad conservada para la gran mayoría
     conservados = [(i, t) for i, t in zip(ids, curr) if i in ids_prev]
