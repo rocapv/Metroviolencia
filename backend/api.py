@@ -260,6 +260,19 @@ def _ts_fin(con, snap_id: int) -> int | None:
         return None
 
 
+def _ultima_pasada(con) -> sqlite3.Row | None:
+    """Última pasada TERMINADA del poller (snapshot_id, ts), tenga trenes o no.
+    Antes era la última con filas en `trenes`: de noche, sin trenes, el reloj
+    «FGV» de la web contaba horas aunque el poller leyera cada 2 min. Bases sin
+    ts_fin (pasadas antiguas, extractos de prueba): la última con trenes."""
+    if con.execute("SELECT 1 FROM trenes LIMIT 1").fetchone() is None:
+        return None                       # sin tracking aún: camino de reserva
+    row = con.execute("SELECT id AS snapshot_id, ts FROM snapshots "
+                      "WHERE ts_fin IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
+    return row or con.execute(
+        "SELECT snapshot_id, ts FROM trenes ORDER BY snapshot_id DESC LIMIT 1").fetchone()
+
+
 @app.get("/api/ultimo")
 def ultimo():
     """Marca de la última pasada servida (ts de inicio y ts_fin), para que el
@@ -268,8 +281,7 @@ def ultimo():
     _touch_client()
     con = _con()
     try:
-        row = con.execute(
-            "SELECT snapshot_id, ts FROM trenes ORDER BY snapshot_id DESC LIMIT 1").fetchone()
+        row = _ultima_pasada(con)
     except sqlite3.OperationalError:
         row = None
     xid = xat.ultim_id(con)
@@ -318,9 +330,7 @@ def trains():
     # camino normal: el poller ya estimó y trackeó los trenes de la última pasada;
     # devolvemos esos, con su `id` persistente (mismo tren entre pulls).
     try:
-        row = con.execute(
-            "SELECT snapshot_id, ts FROM trenes ORDER BY snapshot_id DESC LIMIT 1"
-        ).fetchone()
+        row = _ultima_pasada(con)
     except sqlite3.OperationalError:
         row = None  # tabla aún no creada (poller viejo)
     if row is not None:
