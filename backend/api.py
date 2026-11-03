@@ -41,6 +41,9 @@ CLIENT_FILE = ROOT / "data" / "last_client.txt"  # señal de "hay cliente activo
 OPEN_FILE = ROOT / "data" / "open_until.txt"      # ventana temporal SIN token
 
 app = FastAPI(title="Metro", version="0.1")
+# la simulació d'un matí són ~10 MB de JSON: comprimit, ~1,5 MB
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
+app.add_middleware(GZipMiddleware, minimum_size=2000)
 
 
 def _touch_client() -> None:
@@ -240,6 +243,42 @@ def registre_estacio(estacio: int):
 def registre_tren(id: int):
     """Paso por estación de un tren (track_id) hoy: horario frente a paso real."""
     return _registre(("tren", id), lambda con: pasos.registro_tren(con, _net(), id))
+
+
+SIM_PREVI = 900   # s: la simulació comença 15 min abans del primer tren en marxa
+
+
+@app.get("/api/simulacio")
+def simulacio(dia: str | None = None, fins: str = "10:00"):
+    """Totes les pasades d'un dia des de l'obertura (primer tren en marxa
+    després de les 03:00, menys SIM_PREVI) fins a l'hora `fins`, amb els trens
+    tal com els va veure el poller. La web les reprodueix com si fóra en
+    directe. La taula `trenes` guarda 3 dies."""
+    import datetime as dt
+    try:
+        d = dt.date.fromisoformat(dia) if dia else dt.date.today()
+        hh, mm = (int(x) for x in fins.split(":"))
+        t0 = int(time.mktime(dt.datetime(d.year, d.month, d.day, 3, 0).timetuple()))
+        t1 = int(time.mktime(dt.datetime(d.year, d.month, d.day, hh, mm).timetuple()))
+    except ValueError:
+        return JSONResponse({"error": "dia o hora invàlids"}, status_code=400)
+    con = _con()
+    r = con.execute("SELECT MIN(ts) FROM trenes WHERE ts>=? AND ts<? AND origen=0",
+                    (t0, t1)).fetchone()
+    if not r or r[0] is None:
+        return {"dia": d.isoformat(), "obertura": None, "pasades": []}
+    obertura = r[0]
+    pasades: dict[int, dict] = {}
+    for sid, ts, tid, linea, destino, color, origen, wps, via in con.execute(
+            "SELECT snapshot_id, ts, track_id, linea, destino, color, origen, waypoints, via "
+            "FROM trenes WHERE ts>=? AND ts<=? ORDER BY snapshot_id",
+            (obertura - SIM_PREVI, t1)):
+        p = pasades.setdefault(sid, {"ts": ts, "trenes": []})
+        p["trenes"].append({"id": tid, "linea": linea, "destino": destino, "color": color,
+                            "origen": bool(origen), "waypoints": json.loads(wps),
+                            "via": via or linea})
+    return {"dia": d.isoformat(), "obertura": obertura, "fins": t1,
+            "pasades": [pasades[k] for k in sorted(pasades)]}
 
 
 def _noinfo(con, snap_id: int) -> list:

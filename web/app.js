@@ -955,10 +955,14 @@ function tickSegon() {
   await cargarRed();
   if (window.iniciaPanells) window.iniciaPanells();
   if (window.iniciaXat) window.iniciaXat();
-  await refrescar();
-  setInterval(refrescar, REFRESH_MS);
-  setInterval(vigilaServidor, VIGILA_MS);
-  setInterval(animar, ANIM_MS);
+  if (window.simActiva && window.simActiva()) {
+    await window.iniciaSimulacio();        // sim.js: reprodueix un matí guardat, sense directe
+  } else {
+    await refrescar();
+    setInterval(refrescar, REFRESH_MS);
+    setInterval(vigilaServidor, VIGILA_MS);
+    setInterval(animar, ANIM_MS);
+  }
   setInterval(tickSegon, 1000);
   tickSegon();
 })();

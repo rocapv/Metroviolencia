@@ -407,3 +407,19 @@ body.mode-desti #map { cursor: crosshair; }
 }
 #desti-toast.fora { opacity: 0; }
 @media (max-width: 600px) { #desti-toast { left: 16px; right: 16px; bottom: 120px; } }
+
+/* simulació d'un matí (sim.js) */
+#sim-barra {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1180;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: calc(100vw - 32px);
+  background: var(--panel); color: var(--txt); border: 1px solid var(--viol);
+  border-radius: 10px; padding: 6px 10px; font-size: 13px; backdrop-filter: blur(6px);
+}
+#sim-barra button, #sim-barra select {
+  font: inherit; color: #fff; background: #2a2a36; border: 1px solid #ffffff22;
+  border-radius: 6px; padding: 2px 8px; cursor: pointer;
+}
+#sim-hora { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 64px; }
+#sim-pos { width: 220px; max-width: 40vw; accent-color: var(--viol); }
+#sim-dia { color: var(--muted); }
+#sim-ix { color: var(--muted); }
