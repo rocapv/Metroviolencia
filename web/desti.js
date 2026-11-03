@@ -109,16 +109,45 @@
     return `${Math.round(s / 60)} min`;
   }
 
+  // El tracker pot donar un id nou al mateix tren físic (p. ex. quan la seua
+  // fila d'ETA es reparteix d'una altra manera entre dues pasades). Es busca
+  // el mateix tren: mateixa línia, destí i via, el més pròxim a on havia
+  // d'estar ara, sense anar arrere més de 500 m. No es «perd» cap tren.
+  function retroba() {
+    const u = desti.ultim;
+    if (!u) return null;
+    let millor = null, dm = 3000;
+    for (const c of ultimoTrenes || []) {
+      if (c.linea !== u.linea || c.destino !== u.destino || viaDe(c) !== viaDe(u)) continue;
+      const d = distVivaTren(c);
+      if (d == null) continue;
+      const avanc = (d - u.d) * u.dir;
+      if (avanc < -500) continue;
+      const dd = Math.abs(d - u.d);
+      if (dd < dm) { dm = dd; millor = c; }
+    }
+    return millor;
+  }
+
   function pinta() {
     crea();
     const card = $("desti-card");
     if (!desti) { card.hidden = true; marcaTren(); return; }
-    const t = trenViu(desti.id);
+    let t = trenViu(desti.id);
+    if (!t && (t = retroba())) { desti.id = t.id; marcaTren(); }
+    if (t) {
+      const wp = t.waypoints || [];
+      desti.ultim = { linea: t.linea, destino: t.destino, via: t.via, d: distVivaTren(t),
+        dir: wp.length > 1 && wp[wp.length - 1].d < wp[0].d ? -1 : 1, color: t.color };
+    }
     card.hidden = false;
     let txt;
     if (!t) {
-      txt = `S'ha perdut el tren (ja no apareix en les dades de FGV).`;
-      desti.avisa = false;
+      const u = desti.ultim;
+      const cap = u ? `<span class="pop-linea" style="background:#${u.color || "888"}">${nomLinia(u)}</span> → ${u.destino}<br>` : "";
+      txt = u && u.destino === desti.estNom
+        ? `${cap}ha arribat a <b>${u.destino}</b>, final del trajecte.`
+        : `${cap}esperant la pròxima lectura de FGV per a situar-lo…`;
     } else {
       const r = etaA(t, desti.estId, desti.estNom);
       const cap = `<span class="pop-linea" style="background:#${t.color || "888"}">${nomLinia(t)}</span> → ${t.destino}`;
