@@ -242,7 +242,8 @@
     $("hist-hora").textContent = hora(T, true);
     $("hist-pos").value = Math.round(1000 * (T - h.ini) / Math.max(1, h.fi - h.ini));
     $("hist-ret").innerHTML = `<span class="hist-dot" style="background:${COLOR[cls]}"></span>` +
-      `${txtRetard(r)}` + (p.origen && T < h.fi ? ` · <span class="hist-mut">en capçalera</span>` : "");
+      `${txtRetard(r)}` + (h.variosDestins ? ` · <span class="hist-mut">→ ${p.destino}</span>` : "") +
+      (p.origen && T < h.fi ? ` · <span class="hist-mut">en capçalera</span>` : "");
   }
 
   function tic() {
@@ -291,7 +292,13 @@
         (fin.seguit ? ` <button type="button" class="hist-seguix" data-id="${fin.seguit}">Segueix-lo: #${fin.seguit} →</button>` : "")
       : j.estat === "arribat"
         ? `<span class="hist-estat arribat">Va acabar el trajecte a ${j.destino}</span>`
-        : `<span class="hist-estat viu">Encara circula</span>`;
+        : `<span class="hist-estat viu">Encara circula</span>` +
+          (j.id_actual && j.id_actual !== j.id
+            ? ` <button type="button" class="hist-seguix" data-viu="${j.id_actual}">En directe: #${j.id_actual} →</button>` : "");
+    const tr = j.trossos || [];
+    const unit = tr.length > 1
+      ? ` <span class="hist-mut" title="El seguiment el va perdre i retrobar amb un altre número: ${tr.map((t) => "#" + t.id).join(" → ")}">` +
+        `recorregut sencer: ${tr.length} trossos units</span>` : "";
     const vels = [30, 60, 120, 300, 600];
     const div = document.createElement("section");
     div.id = "hist-panell";
@@ -300,7 +307,7 @@
       `<div class="hist-cap">${capCompartir(`${chip}→ ${j.destino} <span class="pop-id">#${j.id}</span>`,
         String(j.id), `el tren ${lin} cap a ${j.destino}`, "pop-tren-nom")}` +
       `<button type="button" class="hist-tanca" aria-label="Tanca el recorregut">×</button></div>` +
-      `<div class="hist-sub">${estat} <span class="hist-mut">${hora(h.ini)}–${hora(h.fi)}</span></div>` +
+      `<div class="hist-sub">${estat} <span class="hist-mut">${hora(h.ini)}–${hora(h.fi)}</span>${unit}</div>` +
       `<div class="hist-ctrl"><button type="button" id="hist-play" aria-label="Pausa">❚❚</button>` +
       `<span id="hist-hora"></span>` +
       `<input id="hist-pos" type="range" min="0" max="1000" value="0" aria-label="Moment del recorregut">` +
@@ -314,7 +321,10 @@
     lligaCompartir(div);
     div.querySelector(".hist-tanca").onclick = tanca;
     const seg = div.querySelector(".hist-seguix");
-    if (seg) seg.onclick = () => window.historiaTren(Number(seg.dataset.id));
+    if (seg) seg.onclick = () => {
+      if (seg.dataset.viu) { tanca(); window.obrirEnllac(seg.dataset.viu); }
+      else window.historiaTren(Number(seg.dataset.id));
+    };
     $("hist-play").onclick = () => posaMarxa(!h.enMarxa);
     $("hist-vel").onchange = (e) => { h.vel = Number(e.target.value); };
     $("hist-pos").oninput = (e) => {
@@ -357,6 +367,7 @@
       return;
     }
     h = prepara(j);
+    h.variosDestins = new Set(j.punts.map((p) => p.destino)).size > 1;
     const dur = h.fi - h.ini;
     h.vel = dur > 3 * 3600 ? 300 : dur > 3600 ? 120 : 60;
     h.T = h.ini;

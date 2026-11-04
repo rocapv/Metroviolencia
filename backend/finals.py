@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS finals_tren (
     linea     INTEGER,
     destino   TEXT,
     veredicte TEXT    NOT NULL,
-    detall    TEXT    NOT NULL           -- JSON (el que torna `veredicte`)
+    detall    TEXT    NOT NULL,          -- JSON (el que torna `veredicte`)
+    seguit_per INTEGER                   -- l'id amb què va seguir (continua): la cadena del recorregut
 );
 CREATE INDEX IF NOT EXISTS idx_finals_ts ON finals_tren(ts_fi);
 """
@@ -63,6 +64,13 @@ CREATE INDEX IF NOT EXISTS idx_finals_ts ON finals_tren(ts_fi);
 
 def init_db(con: sqlite3.Connection) -> None:
     con.executescript(DDL)
+    try:   # taules d'abans de la columna (04/11/2026, poques hores)
+        con.execute("ALTER TABLE finals_tren ADD COLUMN seguit_per INTEGER")
+        con.execute("UPDATE finals_tren SET seguit_per=json_extract(detall, '$.seguit_per')")
+        con.commit()
+    except sqlite3.OperationalError:
+        pass
+    con.execute("CREATE INDEX IF NOT EXISTS idx_finals_seguit ON finals_tren(seguit_per)")
 
 
 def _hhmm(ts: int) -> str:
@@ -231,9 +239,9 @@ def veredicte(con, net, track_id: int, ctx: Context | None = None,
     if res and res["veredicte"] in DEFINITIUS:
         try:
             con.execute("INSERT OR REPLACE INTO finals_tren(track_id, ts_fi, linea, destino, "
-                        "veredicte, detall) VALUES (?,?,?,?,?,?)",
+                        "veredicte, detall, seguit_per) VALUES (?,?,?,?,?,?,?)",
                         (track_id, res["ts_fi"], res["linea"], res["destino"], res["veredicte"],
-                         json.dumps(res, ensure_ascii=False)))
+                         json.dumps(res, ensure_ascii=False), res.get("seguit_per")))
             if commit:
                 con.commit()
         except sqlite3.OperationalError:
@@ -261,6 +269,38 @@ def del_dia(con, net, dia: str, ahora: int | None = None) -> dict:
         llista.append(dict(r, id=tid))
     con.commit()
     return {"dia": dia, "compte": compte, "trens": llista}
+
+
+MAX_TROSSOS = 60   # trossos d'un mateix tren que s'uneixen com a molt (un torn sencer)
+
+
+def cadena(con, net, track_id: int) -> list[int]:
+    """Tots els ids que han estat el MATEIX tren, en ordre: el seguiment el
+    perdia i el retrobava amb un número nou, i el recorregut d'un id podia ser
+    només d'una estació a la següent. Cap enrere: els perduts que «van seguir»
+    amb este id; cap avant: l'id amb què va seguir este (finals.seguit_per).
+    Els girs en capçalera ja conserven el número (tracking.herencias)."""
+    ids = [track_id]
+    cur = track_id
+    for _ in range(MAX_TROSSOS):
+        try:
+            r = con.execute("SELECT track_id FROM finals_tren WHERE seguit_per=? "
+                            "ORDER BY ts_fi DESC LIMIT 1", (cur,)).fetchone()
+        except sqlite3.OperationalError:
+            r = None
+        if not r or r[0] in ids:
+            break
+        ids.insert(0, r[0])
+        cur = r[0]
+    cur = track_id
+    for _ in range(MAX_TROSSOS):
+        f = veredicte(con, net, cur)
+        nou = f.get("seguit_per") if f and f.get("veredicte") == "continua" else None
+        if not nou or nou in ids:
+            break
+        ids.append(nou)
+        cur = nou
+    return ids
 
 
 def purga(con, hasta_ts: int) -> int:

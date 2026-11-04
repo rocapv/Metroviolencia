@@ -47,9 +47,17 @@ def slugs(net) -> dict[str, int]:
 
 
 def historia(con, net, track_id: int) -> dict | None:
-    filas = con.execute(
-        "SELECT snapshot_id, ts, linea, destino, color, origen, d, via, waypoints, prox_estacion "
-        "FROM trenes WHERE track_id=? ORDER BY ts", (track_id,)).fetchall()
+    """Recorregut sencer del tren: tots els trossos de la seua cadena
+    (finals.cadena), no només l'id demanat. `trossos` = [{id, ini, fi}]."""
+    ids = finals.cadena(con, net, track_id)
+    filas, trossos = [], []
+    for tid in ids:
+        f = con.execute(
+            "SELECT snapshot_id, ts, linea, destino, color, origen, d, via, waypoints, prox_estacion "
+            "FROM trenes WHERE track_id=? ORDER BY ts", (tid,)).fetchall()
+        if f:
+            filas += f
+            trossos.append({"id": tid, "ini": f[0][1], "fi": f[-1][1]})
     if not filas:
         return None
     ultima_pasada = con.execute("SELECT MAX(snapshot_id) FROM trenes").fetchone()[0]
@@ -61,6 +69,7 @@ def historia(con, net, track_id: int) -> dict | None:
                       "destino": destino, "origen": bool(origen)})
     if not punts:
         return None
+    ult_id = trossos[-1]["id"]
     sid, ts, linea, destino, color, origen, d, via, wps, prox = filas[-1]
     via = via or linea
     wps = json.loads(wps or "[]")
@@ -77,12 +86,22 @@ def historia(con, net, track_id: int) -> dict | None:
                           "destino": destino, "origen": False, "previst": True})
     else:
         estat = "perdut"
-    final = finals.veredicte(con, net, track_id) if estat == "perdut" else None
+    final = finals.veredicte(con, net, ult_id) if estat == "perdut" else None
+    # pas per estació de cada tros; les «previstes» d'un tros que no és l'últim
+    # les va passar el tros següent: fora
+    estacions = []
+    for k, t in enumerate(trossos):
+        for e in registro_tren(con, net, t["id"], ahora=t["fi"]):
+            if e.get("previst") and k < len(trossos) - 1:
+                continue
+            estacions.append(e)
+    estacions.sort(key=lambda e: (e.get("previst", False), e["ts"]))
     return {
-        "id": track_id, "linea": linea, "destino": destino, "color": color, "via": via,
+        "id": track_id, "id_actual": ult_id, "trossos": trossos,
+        "linea": linea, "destino": destino, "color": color, "via": via,
         "estat": estat, "final": final,
         "fi": {"ts": ts, "d": round(d, 1) if d is not None else None, "via": via,
                "prox": prox, "origen": bool(origen)},
         "punts": punts,
-        "estacions": registro_tren(con, net, track_id, ahora=ts),
+        "estacions": estacions,
     }
