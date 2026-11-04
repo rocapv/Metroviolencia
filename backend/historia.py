@@ -95,11 +95,11 @@ def historia(con, net, track_id: int) -> dict | None:
     estacions = []
     for k, t in enumerate(trossos):
         dies = []
-        d = dt.date.fromtimestamp(t["ini"])
-        while d <= dt.date.fromtimestamp(t["fi"]):
-            fi_dia = int(dt.datetime.combine(d + dt.timedelta(days=1), dt.time()).timestamp()) - 1
+        dia = dt.date.fromtimestamp(t["ini"])
+        while dia <= dt.date.fromtimestamp(t["fi"]):
+            fi_dia = int(dt.datetime.combine(dia + dt.timedelta(days=1), dt.time()).timestamp()) - 1
             dies.append(min(t["fi"], fi_dia))
-            d += dt.timedelta(days=1)
+            dia += dt.timedelta(days=1)
         for j, ahora in enumerate(dies):
             ultim = k == len(trossos) - 1 and j == len(dies) - 1
             for e in registro_tren(con, net, t["id"], ahora=ahora):
