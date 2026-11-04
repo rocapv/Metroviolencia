@@ -481,7 +481,8 @@ def _prog_dia(con, dia: str) -> dict[tuple[int, int], list[int]]:
         for v in prog.values():
             v.sort()
         if prog:                      # no cachear un día aún sin descargar
-            _prog_cache.clear()
+            while len(_prog_cache) >= 3:  # hoy, ayer y el recorrido que se esté mirando
+                _prog_cache.pop(next(iter(_prog_cache)))
             _prog_cache[dia] = prog
         return prog
     return _prog_cache[dia]

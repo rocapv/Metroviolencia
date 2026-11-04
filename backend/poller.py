@@ -451,6 +451,38 @@ def lanzar_horarios() -> None:
     _hilo_horario.start()
 
 
+_hilo_finals: threading.Thread | None = None
+FINALS_CADA = 600   # s: cada quant es busca com han acabat els trens perduts
+
+
+def _calcular_finals() -> None:
+    """Veredicte dels trens perduts (finals.py) dels que ja es pot dir. En fil
+    a banda: el context del dia (horari, sentits) costa uns segons a la Raspa
+    i el primer que obria el recorregut d'un tren esperava 20-35 s. Així, quan
+    algú l'obri, ja està guardat. De matinada també es tanca el dia d'ahir."""
+    try:
+        con = sqlite3.connect(DB, timeout=60)
+        con.execute("PRAGMA secure_delete=OFF")
+        net = load_network()
+        hoy = dt.date.today()
+        dies = [hoy] + ([hoy - dt.timedelta(days=1)] if dt.datetime.now().hour < 4 else [])
+        for d in dies:
+            r = finals.del_dia(con, net, d.isoformat())
+            if r["compte"].get("cancellat"):
+                print(f"finals {d}: {r['compte']}")
+        con.close()
+    except Exception as e:  # noqa: BLE001
+        print("error en finals:", e)
+
+
+def lanzar_finals() -> None:
+    global _hilo_finals
+    if _hilo_finals and _hilo_finals.is_alive():
+        return
+    _hilo_finals = threading.Thread(target=_calcular_finals, daemon=True)
+    _hilo_finals.start()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true", help="una sola pasada y salir")
@@ -466,12 +498,16 @@ def main():
     idle = args.interval            # cadencia sin clientes (por defecto 60)
     last_pull = 0.0
     last_horario = 0.0
+    last_finals = time.time()       # el primer, d'ací a FINALS_CADA (que arranque lleuger)
     forzado_hasta = 0.0             # una centinela vio trenes: servicio hasta aquí
     modo = "servicio"
     while True:
         if time.time() - last_horario > 3600:   # cada hora: ¿falta horario?
             last_horario = time.time()
             lanzar_horarios()
+        if time.time() - last_finals > FINALS_CADA:
+            last_finals = time.time()
+            lanzar_finals()
         ahora = time.time()
         if cliente_activo():
             objetivo = INTERVAL_ACTIVO
