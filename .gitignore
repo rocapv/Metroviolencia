@@ -12,6 +12,8 @@ data/sample-*.json
 
 data/*.db-journal
 data/*.db-wal
+data/*.db-shm
+data/*.log
 
 # secreto: token de acceso
 data/token.txt
