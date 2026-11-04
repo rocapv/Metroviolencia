@@ -64,7 +64,7 @@ def _coste(lo: float, hi: float, cd: float) -> float:
     return 0.0
 
 
-def _alinear(pred_rangos: list, curr_d: list, dt: float) -> list:
+def _alinear(pred_rangos: list, curr_d: list, dt: float, compat=None) -> list:
     """Alineamiento óptimo que preserva el orden entre los INTERVALOS previstos
     de los trenes anteriores (`pred_rangos` = lista de (lo,hi)) y las posiciones
     actuales (`curr_d`), minimizando la suma de distancias-al-intervalo de los
@@ -79,6 +79,8 @@ def _alinear(pred_rangos: list, curr_d: list, dt: float) -> list:
     INF = float("inf")
 
     def cm(i, j):  # coste de casar pred_rangos[i] con curr_d[j]
+        if compat is not None and not compat(i, j):
+            return INF
         c = _coste(pred_rangos[i][0], pred_rangos[i][1], curr_d[j])
         return c if c <= tol else INF
 
@@ -109,13 +111,27 @@ def _alinear(pred_rangos: list, curr_d: list, dt: float) -> list:
     return asig
 
 
+# 04/11/2026: un tren «en espera» en cabecera es la PRÓXIMA EIXIDA que anuncia
+# FGV (el panel de la capçalera només en dona una per destí), no un tren físic.
+# Quan el tren se n'anava, la capçalera passava a anunciar l'eixida següent
+# (10-15 min després) i el seguiment casava l'id amb eixa eixida nova en lloc
+# del tren que eixia: a les capçaleres de final de via (d alta) l'empat el
+# guanyava sempre l'espera, i si FGV donava l'eixida tard, també a les altres.
+# El tren que eixia rebia un número nou i l'«espera» vivia hores amb el mateix
+# (03/11: 49 ids més d'1 h, un 16 h a Machado): el torn de cada unitat es
+# tallava a cada viatge. Ara dues esperes només són el mateix tren si anuncien
+# la MATEIXA eixida (± SALIDA_TOL).
+SALIDA_TOL = 300   # s
+
+
 def track(curr: list, prev: list, dt: float, next_id: int, vias: dict | None = None):
     """Asigna track_id a cada tren actual.
 
     curr: lista de objetos Tren (positions.estimar) — tienen .linea, .destino y
           .waypoints (el primer waypoint es la posición actual, d con eta 0).
     prev: lista de dicts del snapshot anterior con
-          {track_id, linea, destino, waypoints}.
+          {track_id, linea, destino, waypoints[, origen, eta]} (origen/eta: si
+          esperaba en capçalera i quan n'havia d'eixir; veure SALIDA_TOL).
     dt:   segundos entre el snapshot anterior y el actual.
     next_id: primer id libre (max(track_id)+1).
 
@@ -176,13 +192,23 @@ def track(curr: list, prev: list, dt: float, next_id: int, vias: dict | None = N
             if pd is None:
                 pd = d0
             lo, hi = (d0, pd) if d0 <= pd else (pd, d0)
-            pred_entries.append((lo, hi, p["track_id"]))
+            # eixida anunciada, en segons des d'ara (només si esperava en capçalera)
+            sal = (p.get("eta") or 0) - dt if p.get("origen") else None
+            pred_entries.append((lo, hi, p["track_id"], sal))
         pred_entries.sort(key=lambda e: (e[0] + e[1]) / 2.0)
         # actuales de este grupo, ordenados por d (posición actual)
         cidx_sorted = sorted(cidx, key=lambda i: curr[i].waypoints[0]["d"])
         pred_rangos = [(e[0], e[1]) for e in pred_entries]
         curr_d = [curr[i].waypoints[0]["d"] for i in cidx_sorted]
-        asig = _alinear(pred_rangos, curr_d, dt)
+
+        def compat(pi, k, cidx_sorted=cidx_sorted, pred_entries=pred_entries):
+            sal_p = pred_entries[pi][3]
+            t = curr[cidx_sorted[k]]
+            if sal_p is None or not getattr(t, "origen", False):
+                return True
+            return abs((getattr(t, "eta_seg", 0) or 0) - sal_p) <= SALIDA_TOL
+
+        asig = _alinear(pred_rangos, curr_d, dt, compat)
         for k, i in enumerate(cidx_sorted):
             pi = asig[k]
             if pi is not None:
@@ -226,6 +252,66 @@ def herencias(acaban: list, esperan: list) -> dict:
 ACABA_M = 4000   # m: a menos de esto de su destino, un tren que deja de verse ha acabado el viaje
 
 
+# ------------------------------------------------------------ relleu en capçalera
+# 04/11/2026, per a l'inventari de flota: `herencias` només mirava els trens en
+# espera en capçalera EN LA MATEIXA pasada en què arribava l'altre. Reproduït el
+# 03/11: de 1.786 arribades, 816 no passaven el número (no hi havia cap espera
+# en eixe moment: Marítim 208, Vicent Andrés Estellés 76, Empalme 74...), i
+# 1.291 ids naixien ja circulant (el tren que ix apareix directament eixint de
+# la capçalera). Ara el que arriba espera fins a RELLEU_S el pròxim que naix en
+# eixa capçalera i se'n va (en ordre d'arribada). Un tren que ix sense ningú
+# esperant ve de cotxeres (comença torn); un que arriba i ningú no el relleva,
+# se'n va a cotxeres (acaba torn).
+RELLEU_S = 1500   # s: temps màxim de volta en capçalera
+RELLEU_M = 2500   # m: el que naix circulant ha d'estar a menys d'açò de la capçalera
+
+
+def relleus(net, pendents: list, nous: list) -> dict:
+    """pendents: [{track_id, linea, destino, ts}] trens que han acabat el
+             viatge (arribat al destí) fa menys de RELLEU_S i que ningú no ha
+             rellevat, en qualsevol ordre.
+    nous:    [{track_id, linea, destino, via, d, dir, origen, cabecera, prox}] trens que poden
+             ser el mateix que ix: en espera en capçalera i sense haver circulat
+             mai (cabecera = nom de l'estació), o nascuts en esta pasada ja
+             circulant a menys de RELLEU_M de la capçalera i allunyant-se'n.
+    Per cada capçalera, el primer que va arribar és el primer que ix; dins
+    d'un mateix moment, la mateixa línia primer. Torna {id_nou: id_pendent}."""
+    out, usats = {}, set()
+    for p in sorted(pendents, key=lambda p: p["ts"]):
+        sid = net.id_por_nombre(p["destino"])
+        if sid is None:
+            continue
+        cands = []
+        for n in nous:
+            if n["track_id"] in usats:
+                continue
+            if n.get("destino") == p["destino"]:
+                continue        # va CAP a la capçalera (un que arriba amb número nou), no n'ix
+            if n.get("origen"):
+                if n.get("cabecera") != net.estaciones[sid].nombre:
+                    continue
+                dist = 0.0
+            else:
+                lc = net.comerciales.get(n["via"]) or net.comerciales.get(n["linea"])
+                d_cab = next((d for d, s in lc.orden if s == sid), None) if lc else None
+                if d_cab is None:
+                    continue
+                dist = (n["d"] - d_cab) * n["dir"]       # >0: s'allunya de la capçalera
+                # Si la pròxima parada és la mateixa capçalera, l'estimador l'ha
+                # posat DARRERE (a Seminari el que ix cap a Torrent comparteix
+                # destí amb els que venen de Bétera i es dibuixa a 2,5 km, «venint»
+                # de l'estació anterior): també val.
+                darrere = -RELLEU_M - 500 if n.get("prox") == net.estaciones[sid].nombre else -200
+                if not (darrere <= dist <= RELLEU_M):
+                    continue
+            cands.append((n["linea"] != p["linea"], abs(dist), n["track_id"]))
+        if cands:
+            n_id = min(cands)[2]
+            out[n_id] = p["track_id"]
+            usats.add(n_id)
+    return out
+
+
 def llega_a_destino(net, linea: int, via: int, destino: str, waypoints: list) -> bool:
     """¿Estaba el tren a menos de ACABA_M de su destino sobre su vía? La
     cabecera solo anuncia SALIDAS: el tren que llega deja de verse en la
@@ -248,7 +334,10 @@ def llega_a_destino(net, linea: int, via: int, destino: str, waypoints: list) ->
 # Reproduït sobre 12 h: dels que «acabaven perduts», 127 seguien a prop amb un
 # ALTRE destí rotulat (FGV canvia el cartell a mitjan recorregut: un L1 «València
 # Sud» passa a «Castelló») i 51 tornaven al cap de més de 7 min.
-RESCAT_S = 900        # s: un tren perdut fa menys d'açò encara es pot retrobar (~7 pasades)
+RESCAT_S = 1800       # s: un tren perdut fa menys d'açò encara es pot retrobar. 900 -> 1800
+                      # el 04/11/2026: reproduït el 03/11, 887 -> 789 ids i 620 -> 522 perduts
+                      # a mitja línia (amb 4.000 m d'avanç n'eixien 752, però el risc
+                      # d'ajuntar dos trens creix i no compensa)
 RESCAT_ENRERE = 500   # m que pot aparéixer per darrere d'on es va perdre (soroll)
 RESCAT_AVANT = 2500   # m que pot aparéixer més enllà d'on havia d'estar ara
 RESCAT_ALTRE = 1500   # m al voltant d'on havia d'estar si ara porta un altre destí

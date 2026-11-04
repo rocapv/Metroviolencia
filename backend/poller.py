@@ -30,7 +30,7 @@ from .cabeceras import CABECERAS
 from .network import load_network
 from .parser import parse_arrivals
 from .positions import estimar
-from .tracking import RESCAT_S, herencias, llega_a_destino, rescats, track
+from .tracking import RELLEU_S, RESCAT_S, llega_a_destino, relleus, rescats, track
 
 # El certificado de metrovalencia.es llega con la cadena incompleta (falta el
 # intermedio de Sectigo). Estrategia de verificación TLS, por orden:
@@ -331,37 +331,26 @@ def track_snapshot(con: sqlite3.Connection, net, snap_id: int, ts: int, rows: li
         psnap, pts = prev_row[0], prev_row[1]
         dt = float(ts - pts)
         for r in con.execute(
-            "SELECT track_id,linea,destino,waypoints,via,prox_estacion,eta_seg FROM trenes "
+            "SELECT track_id,linea,destino,waypoints,via,prox_estacion,eta_seg,origen FROM trenes "
             "WHERE snapshot_id=?", (psnap,),
         ):
             prev.append({"track_id": r[0], "linea": r[1], "destino": r[2],
                          "waypoints": json.loads(r[3]), "via": r[4] or r[1],
-                         "prox": r[5], "eta": r[6]})
+                         "prox": r[5], "eta": r[6], "origen": bool(r[7])})
     next_id = con.execute(
         "SELECT COALESCE(MAX(track_id),0)+1 FROM trenes"
     ).fetchone()[0]
 
     vias = {k: (lc.variante_de, lc.d_union) for k, lc in net.comerciales.items() if lc.variante_de}
     ids, _ = track(curr, prev, dt, next_id, vias=vias)
-    # vuelta en cabecera: el que espera hereda el número del que acaba su viaje
+    # vuelta en cabecera: el que ix hereda el número del que va arribar
+    # (tracking.relleus; abans `herencias`, que només mirava la mateixa pasada)
     vivos = set(ids)
-    acaban = [{"track_id": p["track_id"], "linea": p["linea"], "destino": p["destino"]}
+    acaban = [{"track_id": p["track_id"], "linea": p["linea"], "destino": p["destino"],
+               "ts": prev_row[1]}
               for p in prev if p["track_id"] not in vivos
               and llega_a_destino(net, p["linea"], p["via"], p["destino"], p["waypoints"])]
-    if acaban:
-        esperan = []
-        for i, t in enumerate(curr):
-            if not t.origen:
-                continue
-            circulo = con.execute("SELECT 1 FROM trenes WHERE track_id=? AND origen=0 LIMIT 1",
-                                  (ids[i],)).fetchone()
-            if not circulo:
-                esperan.append({"track_id": ids[i], "linea": t.linea,
-                                "cabecera": t.prox_estacion, "eta": t.eta_seg})
-        her = herencias(acaban, esperan)
-        for nuevo, viejo in her.items():
-            con.execute("UPDATE trenes SET track_id=? WHERE track_id=?", (viejo, nuevo))
-        ids = [her.get(i, i) for i in ids]
+    ids = _releva(con, net, ts, prev_row, curr, ids, next_id, acaban)
     ids = _rescata(con, net, ts, prev_row, prev, curr, ids, next_id, acaban, vias)
     filas = []
     for i, t in enumerate(curr):
@@ -376,6 +365,51 @@ def track_snapshot(con: sqlite3.Connection, net, snap_id: int, ts: int, rows: li
     )
     con.commit()
     return len(filas)
+
+
+def _releva(con, net, ts, prev_row, curr, ids, next_id, acaban) -> list:
+    """El tren que ix d'una capçalera és el que hi va arribar (tracking.relleus):
+    els que han acabat el viatge fa menys de RELLEU_S i encara no ha rellevat
+    ningú passen el número al que naix ara en eixa capçalera (o espera a eixir
+    sense haver circulat mai). En DB, el nou passa a dur el número vell."""
+    pendents = list(acaban)
+    if prev_row:
+        vivos = set(ids)
+        ja = {a["track_id"] for a in acaban}
+        desde = con.execute("SELECT MIN(id) FROM snapshots WHERE ts>=?", (ts - RELLEU_S,)).fetchone()[0]
+        if desde is not None:
+            for tid, tts, lin, dest, via, wps in con.execute(
+                    "SELECT t.track_id, t.ts, t.linea, t.destino, t.via, t.waypoints FROM trenes t "
+                    "JOIN (SELECT track_id, MAX(snapshot_id) s FROM trenes WHERE snapshot_id>=? "
+                    "GROUP BY track_id) u ON t.track_id=u.track_id AND t.snapshot_id=u.s "
+                    "WHERE t.snapshot_id<? AND t.origen=0", (desde, prev_row[0])):
+                if tid in vivos or tid in ja:
+                    continue
+                w = json.loads(wps or "[]")
+                if w and llega_a_destino(net, lin, via or lin, dest, w):
+                    pendents.append({"track_id": tid, "linea": lin, "destino": dest, "ts": tts})
+    if not pendents:
+        return ids
+    cands = []
+    for i, t in enumerate(curr):
+        if not t.waypoints:
+            continue
+        if ids[i] >= next_id:
+            pass                                  # nascut en esta pasada
+        elif t.origen:
+            if con.execute("SELECT 1 FROM trenes WHERE track_id=? AND origen=0 LIMIT 1",
+                           (ids[i],)).fetchone():
+                continue                          # ja ha circulat: no és una eixida nova
+        else:
+            continue
+        cands.append({"track_id": ids[i], "linea": t.linea, "destino": t.destino, "via": t.via or t.linea,
+                      "d": t.waypoints[0]["d"],
+                      "dir": 1 if t.waypoints[-1]["d"] >= t.waypoints[0]["d"] else -1,
+                      "origen": t.origen, "cabecera": t.prox_estacion, "prox": t.prox_estacion})
+    her = relleus(net, pendents, cands) if cands else {}
+    for nuevo, viejo in her.items():
+        con.execute("UPDATE trenes SET track_id=? WHERE track_id=?", (viejo, nuevo))
+    return [her.get(i, i) for i in ids] if her else ids
 
 
 def _rescata(con, net, ts, prev_row, prev, curr, ids, next_id, acaban, vias) -> list:
