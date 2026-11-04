@@ -716,7 +716,7 @@ def cancelados_estacion(con, net, sid: int, dia: str, ahora: int | None = None,
     fuente publica esa dirección en esa estación (algún paso real hacia esa
     vecina en el día) y si el par no es incoherente (`incoherentes`)."""
     import bisect
-    from .salidas import HUECO_MAX, _cobertura, _cubierto
+    from .salidas import HUECO_MAX, _cobertura, _continuo, _cubierto
     ahora = ahora or int(time.time())
     t0, t1 = _rango_dia(dia)
     prog = _prog_dia(con, dia)
@@ -762,9 +762,11 @@ def cancelados_estacion(con, net, sid: int, dia: str, ahora: int | None = None,
             if n_real >= n_prog:
                 continue                          # pasaron tantos como estaban previstos: solo retraso
             if cob is None:
-                cob = _cobertura(con, sid, t0 - HUECO_MAX, t1 + HUECO_MAX)
-            if not (_cubierto(cob, p) and _cubierto(cob, sig)):
-                continue                          # sin lecturas: no se sabe, no es cancelado
+                cob = _cobertura(con, sid, t0 - HUECO_MAX, t1 + HORIZONTE_CANC + HUECO_MAX)
+            if not (_cubierto(cob, p) and _cubierto(cob, sig)
+                    and _continuo(cob, ini, p + HORIZONTE_CANC)):
+                continue                          # sin lecturas (o con un hueco) mientras se cuentan
+                                                  # los pasos: no se sabe, no es cancelado
             out.append({"hora": _hhmm(p), "ts_prog": p, "hacia_id": v,
                         "hacia": net.estaciones[v].nombre if v in net.estaciones else str(v),
                         "lineas": _lineas_del_par(net, sid, v)})

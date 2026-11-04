@@ -11,7 +11,8 @@ lecturas_fallidas, noinfo, y el RESUMEN de retrasos de cada día.
     un blob por pasada (ver lectures.py).
 
     lectures   -> RETENER_LECTURES días (permite --reprocesar lo reciente)
-    trenes     -> RETENER_TRENES días (mapa, simulación y recorrido de un tren)
+    trenes     -> RETENER_TRENES días (mapa, simulación y recorrido de un tren),
+                  y con ellos finals_tren (cómo acabó cada tren perdido)
     lecturas_fallidas / noinfo -> RETENER_LOGS días, pero nunca de un día aún
                   sin resumir (el resumen de retrasos los usa)
     data/archivo/*.csv.gz -> fuera a los RETENER_LOGS días
@@ -155,6 +156,12 @@ def purgar(con: sqlite3.Connection, log=print) -> dict:
     # entera `compacta` de madrugada, que sin secure_delete es marcar páginas)
     c = _corte(con, RETENER_TRENES)
     res["trenes"] = _borrar(con, "trenes", c, log) if c else 0
+    try:   # veredictes dels trens perduts (finals.py): viuen el mateix que `trenes`
+        from . import finals
+        finals.init_db(con)
+        res["finals_tren"] = finals.purga(con, int(time.time()) - RETENER_TRENES * 86400)
+    except sqlite3.OperationalError as e:
+        log(f"  purga finals_tren: error {e}")
     try:
         res["pasos_obs"] = _resumir_y_purgar_pasos(con, log)
     except Exception as e:  # noqa: BLE001 - que no tumbe el resto de la purga

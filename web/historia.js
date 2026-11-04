@@ -2,7 +2,10 @@
    Reprodueix, amb el rellotge accelerat, la posició que tenia el tren a cada
    pasada del poller. El traç es pinta amb el color del retard que portava (a
    l'hora / +1,5 min / +3 min / avançat). Si va desaparéixer a mitjan trajecte,
-   hi queda una marca roja i l'animació s'hi para. Les dades: /api/historia_tren. */
+   l'animació s'hi para i la marca diu què va passar (final.veredicte de
+   backend/finals.py): cancel·lat (roja), el vam perdre però va seguir
+   (taronja, amb l'id que el continua), retirat, sense dades o pendent.
+   Les dades: /api/historia_tren. */
 (function () {
   const COLOR = { "": "#4ade80", poc: "#f59e0b", tard: "#ef4444", avanc: "#38bdf8", nd: "#8a8a98" };
   const SALT_MAX = 600;     // s: entre dues pasades més separades no s'interpola (forat de dades)
@@ -16,6 +19,54 @@
     if (r == null) return "sense hora programada";
     const m = Math.round(Math.abs(r) / 60);
     return Math.abs(r) < 90 ? "a l'hora" : r > 0 ? `+${m} min tard` : `${m} min avançat`;
+  }
+
+  // com va acabar un tren perdut (backend/finals.py): marca, color i textos
+  function final(j) {
+    const f = j.final || { veredicte: "indeterminat" };
+    const abans = j.fi.prox && !j.fi.origen ? `, abans d'arribar a ${j.fi.prox}` : j.fi.origen ? ", sense eixir de la capçalera" : "";
+    const ests = (f.estacions || []).filter((e) => !e.sense_dades);
+    const vist = ests.find((e) => e.pas);
+    const canc = ests.find((e) => e.cancel_prog);
+    const hh = (ts) => ts ? hora(ts) : "";
+    switch (f.veredicte) {
+      case "cancellat":
+        return { cls: "perdut", ic: "✕", ratlla: true,
+          curt: `<b>Cancel·lat</b> · desapareix a les ${hora(j.fi.ts)}${abans}`,
+          llarg: `Cancel·lat a les ${hora(j.fi.ts)}${abans}` +
+            (canc ? ` · no va passar per ${canc.estacio} (hi tenia un tren programat a les ${canc.cancel_prog})` : ""),
+          ajuda: "Cap estació per davant no el va veure passar i al seu horari hi falta un tren" };
+      case "continua":
+        return { cls: "seguit", ic: "↷", ratlla: false,
+          curt: `<b>El vam perdre de vista</b> a les ${hora(j.fi.ts)} · però va seguir`,
+          llarg: `El vam perdre de vista a les ${hora(j.fi.ts)}, però va seguir` +
+            (vist ? `: ${vist.estacio} el va veure passar a les ${vist.pas}` : ""),
+          ajuda: "Les estacions per davant van registrar el seu pas a l'hora prevista: no el va cancel·lar FGV, el va perdre el nostre seguiment",
+          seguit: f.seguit_per };
+      case "retirat":
+        return { cls: "retirat", ic: "⏏", ratlla: true,
+          curt: `<b>Retirat</b> a les ${hora(j.fi.ts)}${abans}`,
+          llarg: `Retirat a les ${hora(j.fi.ts)}${abans} · ja no tenia cap pas programat per davant`,
+          ajuda: "Fi de servei o tren que se'n va a cotxeres" };
+      case "sense_dades":
+        return { cls: "nd", ic: "?", ratlla: false,
+          curt: `<b>Sense dades</b> des de les ${hora(j.fi.ts)}`,
+          llarg: `Sense dades des de les ${hora(j.fi.ts)}` + (f.buit ? ` fins a les ${hh(f.buit[1])}` : "") +
+            " · no podem saber què li va passar",
+          ajuda: "Les lectures de FGV es van interrompre just després" };
+      case "pendent":
+        return { cls: "pendent", ic: "?", ratlla: true,
+          curt: `<b>Desapareix</b> a les ${hora(j.fi.ts)}${abans}`,
+          llarg: `Desapareix a les ${hora(j.fi.ts)}${abans}` +
+            (f.fins ? ` · cap a les ${hh(f.fins)} sabrem si està cancel·lat` : " · encara no sabem si està cancel·lat"),
+          ajuda: "Cal esperar que passe l'hora que tenia a les estacions següents" };
+      default:
+        return { cls: "perdut", ic: "✕", ratlla: true,
+          curt: `<b>Desapareix</b> a les ${hora(j.fi.ts)}${abans}`,
+          llarg: `Desapareix a les ${hora(j.fi.ts)}${abans} · sense confirmar si està cancel·lat` +
+            (f.motiu ? ` (${f.motiu})` : ""),
+          ajuda: "Les dades no permeten dir si el van cancel·lar, si el van retirar o si el vam perdre de vista" };
+    }
   }
 
   function panes() {
@@ -139,9 +190,9 @@
     if (!ll) return;
     let html, txt;
     if (j.estat === "perdut") {
-      html = `<div class="hist-fi perdut" aria-hidden="true">✕</div>`;
-      txt = `<b>Desapareix</b> · FGV el deixa d'anunciar a les ${hora(j.fi.ts)}` +
-        (j.fi.prox && !j.fi.origen ? `, abans d'arribar a ${j.fi.prox}` : j.fi.origen ? ", sense eixir de la capçalera" : "");
+      const f = final(j);
+      html = `<div class="hist-fi ${f.cls}" aria-hidden="true">${f.ic}</div>`;
+      txt = f.curt;
       h.marca.setOpacity(0.35);
     } else if (j.estat === "arribat") {
       html = `<div class="hist-fi arribat" aria-hidden="true">✓</div>`;
@@ -153,7 +204,8 @@
     h.marcaFi = L.marker(ll, {
       icon: L.divIcon({ className: "", html, iconSize: [26, 26], iconAnchor: [13, 13] }),
       pane: "historia", interactive: false, keyboard: false,
-    }).bindTooltip(txt, { permanent: true, direction: "top", offset: [0, -14], className: "hist-tt" }).addTo(h.capa);
+    }).bindTooltip(txt, { permanent: true, direction: "top", offset: [0, -14],
+      className: "hist-tt" + (j.estat === "perdut" ? " " + final(j).cls : "") }).addTo(h.capa);
   }
 
   function pinta() {
@@ -216,7 +268,7 @@
   function llistaEstacions() {
     const fs = h.j.estacions || [];
     if (!fs.length) return "<div class='pop-buida'>sense pas registrat per estació</div>";
-    const perdut = h.j.estat === "perdut";
+    const perdut = h.j.estat === "perdut" && final(h.j).ratlla;
     return `<div class="reg-row reg-cap"><span class="reg-h">pas</span><span class="reg-p">horari</span></div>` +
       fs.map((f) => {
         const no = f.previst && perdut;
@@ -233,10 +285,10 @@
     const j = h.j;
     const lin = NOMBRES_LINEA[j.linea] || "L" + j.linea;
     const chip = `<span class="pop-linea" style="background:#${j.color || "888"}">${lin}</span>`;
-    const estat = j.estat === "perdut"
-      ? `<span class="hist-estat perdut" title="FGV el deixa d'anunciar abans del final: cancel·lat, retirat o un tall de les dades">` +
-        `Desapareix a mitjan trajecte · ${hora(j.fi.ts)}` +
-        `${j.fi.prox && !j.fi.origen ? `, abans d'arribar a ${j.fi.prox}` : ""}</span>`
+    const fin = j.estat === "perdut" ? final(j) : null;
+    const estat = fin
+      ? `<span class="hist-estat ${fin.cls}" title="${fin.ajuda}">${fin.llarg}</span>` +
+        (fin.seguit ? ` <button type="button" class="hist-seguix" data-id="${fin.seguit}">Segueix-lo: #${fin.seguit} →</button>` : "")
       : j.estat === "arribat"
         ? `<span class="hist-estat arribat">Va acabar el trajecte a ${j.destino}</span>`
         : `<span class="hist-estat viu">Encara circula</span>`;
@@ -261,6 +313,8 @@
     document.body.appendChild(div);
     lligaCompartir(div);
     div.querySelector(".hist-tanca").onclick = tanca;
+    const seg = div.querySelector(".hist-seguix");
+    if (seg) seg.onclick = () => window.historiaTren(Number(seg.dataset.id));
     $("hist-play").onclick = () => posaMarxa(!h.enMarxa);
     $("hist-vel").onchange = (e) => { h.vel = Number(e.target.value); };
     $("hist-pos").oninput = (e) => {

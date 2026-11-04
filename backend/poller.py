@@ -25,7 +25,7 @@ from pathlib import Path
 
 import requests
 
-from . import horarios, pasos, purga, salidas, xat, lectures
+from . import finals, horarios, pasos, purga, salidas, xat, lectures
 from .cabeceras import CABECERAS
 from .network import load_network
 from .parser import parse_arrivals
@@ -213,6 +213,7 @@ def init_db() -> sqlite3.Connection:
     con.executescript(SCHEMA)
     con.commit()
     lectures.init_db(con)
+    finals.init_db(con)
     horarios.init_db(con)
     salidas.init_db(con)
     pasos.init_db(con)

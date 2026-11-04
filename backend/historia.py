@@ -11,7 +11,10 @@ acabar:
                 a la penúltima estació). S'hi afegeix la cua prevista de
                 l'última pasada perquè l'animació arribe fins al final.
     perdut   -> va deixar de veure's a mitjan trajecte: la web hi posa una
-                marca roja i hi para l'animació.
+                marca i hi para l'animació. `final` diu què li va passar
+                (finals.py: continua / cancellat / retirat / sense_dades /
+                pendent / indeterminat); fins al 04/11/2026 era sempre una
+                marca roja, i quasi sempre el tren havia seguit.
 
 També els noms d'URL de les estacions (metro.pr1.es/burjassot).
 """
@@ -21,6 +24,7 @@ import json
 import re
 import unicodedata
 
+from . import finals
 from .pasos import HORIZONTE, registro_tren
 from .tracking import llega_a_destino
 
@@ -73,9 +77,10 @@ def historia(con, net, track_id: int) -> dict | None:
                           "destino": destino, "origen": False, "previst": True})
     else:
         estat = "perdut"
+    final = finals.veredicte(con, net, track_id) if estat == "perdut" else None
     return {
         "id": track_id, "linea": linea, "destino": destino, "color": color, "via": via,
-        "estat": estat,
+        "estat": estat, "final": final,
         "fi": {"ts": ts, "d": round(d, 1) if d is not None else None, "via": via,
                "prox": prox, "origen": bool(origen)},
         "punts": punts,

@@ -177,6 +177,30 @@ def _cubierto(cob: list[int], t: int, margen: int = HUECO_MAX) -> bool:
     return i < len(cob) and cob[i] <= t + margen
 
 
+def _continuo(cob: list[int], a: int, b: int, hueco: int = HUECO_MAX) -> bool:
+    """¿Se leyó la estación durante TODO [a, b], sin ningún hueco mayor que
+    `hueco`? `_cubierto` solo pide una lectura cerca de un instante: el
+    04/11/2026 una hora programada a las 10:05 contaba como «leída» por la
+    pasada de las 10:03 aunque la siguiente no llegó hasta las 10:28, y todo
+    lo que no se vio en ese hueco salía como cancelado.
+    Hace falta una lectura en o después de `b` (si `cob` no llega, no se sabe
+    si después de la última hubo un hueco): pedir `cob` hasta b + hueco."""
+    import bisect
+    i = bisect.bisect_right(cob, a) - 1          # última lectura <= a
+    if i < 0 or a - cob[i] > hueco:
+        return False
+    prev = cob[i]
+    if prev >= b:
+        return True
+    for t in cob[i + 1:]:
+        if t - prev > hueco:
+            return False
+        if t >= b:
+            return True
+        prev = t
+    return False
+
+
 def registro(con: sqlite3.Connection, dia: str, ahora: int | None = None) -> list[dict]:
     """Una fila por salida programada (y por salida real no programada)."""
     ahora = ahora or int(time.time())
@@ -230,8 +254,9 @@ def registro(con: sqlite3.Connection, dia: str, ahora: int | None = None) -> lis
                                   "sin_datos": "sin_datos"}[o["estado"]]
             elif p["ts_prog"] + GRACIA > ahora:
                 fila["estado"] = "pendiente"
-            elif _cubierto(cob, p["ts_prog"]):
-                fila["estado"] = "cancelada"      # había datos y el tren nunca apareció
+            elif _cubierto(cob, p["ts_prog"]) and _continuo(
+                    cob, p["ts_prog"] + VENTANA_ANTES, p["ts_prog"] + GRACIA):
+                fila["estado"] = "cancelada"      # había datos (sin huecos) y el tren nunca apareció
             else:
                 fila["estado"] = "sin_datos"
             out.append(fila)

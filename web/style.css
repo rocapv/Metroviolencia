@@ -488,6 +488,9 @@ body.mode-historia .leaflet-marker-pane .leaflet-marker-icon:not(.hist-icona) { 
 .hist-estat.perdut { color: #f87171; }
 .hist-estat.arribat { color: #4ade80; }
 .hist-estat.viu { color: #38bdf8; }
+.hist-estat.seguit { color: #fbbf24; }
+.hist-estat.retirat, .hist-estat.nd { color: #b0b0bc; }
+.hist-estat.pendent { color: #f87171; }
 .hist-mut { color: var(--muted); }
 .hist-ctrl { display: flex; align-items: center; gap: 8px; }
 .hist-ctrl button, .hist-ctrl select {
@@ -515,7 +518,18 @@ body.mode-historia .leaflet-marker-pane .leaflet-marker-icon:not(.hist-icona) { 
 .hist-fi.perdut { background: #dc2626; box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.35); }
 .hist-fi.arribat { background: #16a34a; }
 .hist-fi.viu { background: #0284c7; }
+.hist-fi.seguit { background: #d97706; box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.35); }
+.hist-fi.retirat { background: #6b7280; }
+.hist-fi.nd { background: #4b5563; }
+.hist-fi.pendent { background: #16161f; border-color: #dc2626; color: #f87171; border-style: dashed; }
 .leaflet-tooltip.hist-tt { background: #16161f; color: var(--txt); border: 1px solid #dc2626; }
+.leaflet-tooltip.hist-tt.seguit { border-color: #d97706; }
+.leaflet-tooltip.hist-tt.retirat, .leaflet-tooltip.hist-tt.nd { border-color: #6b7280; }
+.hist-seguix {
+  margin-left: 4px; padding: 1px 7px; border-radius: 9px; border: 1px solid #d97706;
+  background: transparent; color: #fbbf24; font: inherit; font-size: 11px; cursor: pointer;
+}
+.hist-seguix:hover { background: rgba(217, 119, 6, 0.18); }
 @media (max-width: 600px) {
   #hist-panell { top: auto; bottom: 12px; left: 16px; right: 16px; transform: none; width: auto; }
   .hist-llista .pop-reg-llista { max-height: 140px; }
