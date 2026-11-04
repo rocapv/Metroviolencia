@@ -508,7 +508,22 @@ def _hhmm(ts: int) -> str:
     return dt.datetime.fromtimestamp(ts).strftime("%H:%M")
 
 
-def retraso_vivo(con, net, tren: dict, ts: int, max_paradas: int = 4) -> dict | None:
+def retrasos_vivos(con, net, tren: dict, ts: int, max_paradas: int = 8) -> list[dict]:
+    """Retraso previsto en CADA una de las próximas paradas con horario
+    casable: [{estacion, eta, retraso_s, hora_prog}] en orden de paso. La web
+    muestra el de la primera parada que el tren aún no ha pasado (el tren
+    avanza entre pasadas: si solo se manda el de la primera, el popup decía
+    «programat a Campanar» con el tren ya camino de Àngel Guimerà)."""
+    out = []
+    for k in range(1, max_paradas + 1):
+        r = retraso_vivo(con, net, tren, ts, max_paradas=k, desde=k - 1)
+        if r is not None and (not out or out[-1]["estacion"] != r["estacion"]):
+            out.append(r)
+    return out
+
+
+def retraso_vivo(con, net, tren: dict, ts: int, max_paradas: int = 4,
+                 desde: int = 0) -> dict | None:
     """Retraso AHORA de un tren en vivo: su llegada prevista a las próximas
     paradas (ts + eta de los waypoints) frente a la hora programada de paso en
     esa parada y sentido. Usa la primera parada donde el casamiento no es
@@ -530,6 +545,8 @@ def retraso_vivo(con, net, tren: dict, ts: int, max_paradas: int = 4) -> dict | 
         probadas += 1
         if probadas > max_paradas:
             break
+        if probadas <= desde:
+            continue
         sid = net.id_por_nombre(nom)
         v = (_vecina(net, tren["linea"], sid, tren["destino"], sentido)
              if sid is not None else None)
@@ -539,7 +556,7 @@ def retraso_vivo(con, net, tren: dict, ts: int, max_paradas: int = 4) -> dict | 
         r = _casar_slot(slots, ts + wp["eta"])
         if r is None:
             continue
-        return {"retraso_s": r[1], "estacion": nom, "hora_prog": _hhmm(r[0])}
+        return {"retraso_s": r[1], "estacion": nom, "hora_prog": _hhmm(r[0]), "eta": wp["eta"]}
     return None
 
 

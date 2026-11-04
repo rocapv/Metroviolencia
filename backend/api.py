@@ -395,11 +395,13 @@ def trains():
             "via": r["via"] or r["linea"],
         } for r in trs]
         # retraso en vivo frente al horario de paso (se ve al tocar el tren)
+        # (i el de cada pròxima parada: la web mostra el de la primera que encara no ha passat)
         for t in trenes:
             try:
-                t["retraso"] = None if t["origen"] else pasos.retraso_vivo(con, _net(), t, ts)
+                t["retards"] = [] if t["origen"] else pasos.retrasos_vivos(con, _net(), t, ts)
             except sqlite3.OperationalError:
-                t["retraso"] = None
+                t["retards"] = []
+            t["retraso"] = t["retards"][0] if t["retards"] else None
         return {"ts": ts, "ts_fin": _ts_fin(con, snap_id), "edad_seg": int(time.time()) - ts,
                 "srv_ms": int(time.time() * 1000),
                 "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap_id)}

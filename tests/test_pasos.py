@@ -206,7 +206,7 @@ def test_retraso_vivo(net, bd):
         {"d": dist[B], "eta": 300, "nom": net.estaciones[B].nombre},
     ]}
     r = retraso_vivo(con, net, tren, ts)
-    assert r == {"retraso_s": 60, "estacion": net.estaciones[A].nombre, "hora_prog": "10:01"}
+    assert r == {"retraso_s": 60, "estacion": net.estaciones[A].nombre, "hora_prog": "10:01", "eta": 120}
     # sin horario para ese día -> None
     assert retraso_vivo(con, net, tren, ts + 86400) is None
 
@@ -463,3 +463,25 @@ def test_registros_sobre_una_hora_real(net, bd_real, extracto, monkeypatch):
         for f in filas:
             assert f["retraso_s"] is None or abs(f["retraso_s"]) <= VENTANA
     assert n_pasadas > 0          # el extracto solo trae 2 pasadas de trenes
+
+
+def test_retrasos_vivos_una_entrada_per_parada(net, bd_real, extracto):
+    """El retard de cada pròxima parada, en ordre de pas i sense repetir-ne cap;
+    el primer és el mateix que dóna retraso_vivo."""
+    from backend.pasos import retrasos_vivos
+    con = bd_real.con
+    ult = max(t["snapshot_id"] for t in extracto["trenes"])
+    ts = next(t["ts"] for t in extracto["trenes"] if t["snapshot_id"] == ult)
+    n = 0
+    for t in extracto["trenes"]:
+        if t["snapshot_id"] != ult or t["origen"]:
+            continue
+        tren = dict(t, waypoints=json.loads(t["waypoints"]))
+        rs = retrasos_vivos(con, net, tren, ts)
+        assert [r["eta"] for r in rs] == sorted(r["eta"] for r in rs)
+        assert len({r["estacion"] for r in rs}) == len(rs)
+        if rs:
+            n += 1
+            primer = retraso_vivo(con, net, tren, ts, max_paradas=8)
+            assert primer["estacion"] == rs[0]["estacion"]
+    assert n > 0

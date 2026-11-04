@@ -571,6 +571,10 @@ function contTren(ent) {
     cont.appendChild(ferPestanyes([
       { clau: "ara", titol: "Ara", html: ara },
       { clau: "reg", titol: "Horari", html: `<div class="pop-reg-llista" data-clau="tren:${t.id}">carregant…</div>` },
+      { clau: "alerta", titol: "Alerta", html:
+        `<div class="pop-alerta">Tria una estació del recorregut: et diu quant tarda este tren ` +
+        `a arribar-hi i t'avisa (avís discret i so fluix) quan hi arriba.</div>` +
+        `<div class="pop-desti"><button data-desti="${t.id}">Quant tarda a… · avisa'm</button></div>` },
       { clau: "xat", titol: "Xat", html: `<div class="pop-xat" data-tipus="tren" data-lloc="${t.id}"></div>` },
     ], (clau, panell) => {
       if (clau === "reg") omplirRegistre(panell.querySelector(".pop-reg-llista"));
@@ -597,25 +601,32 @@ function actualitzaContTren(ent) {
   const p = proxParada(t);
   const espera = t.origen ? ' <span style="color:#e8c07a">(en eixida)</span>' : "";
   cont.querySelector(".pop-tren-ara").innerHTML =
-    `<span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>${espera}` +
-    retardTren(t) +
-    (t.id != null ? `<div class="pop-desti"><button data-desti="${t.id}">Quant tarda a… · avisa'm</button></div>` : "");
+    `<span style="color:#9a9aac">pròxima parada: <span class="c-prox">${p.nom}</span> · ` +
+    `<b class="c-eta">${fmtEta(p.eta)}</b></span>${espera}<div class="c-ret">${retardTren(t)}</div>`;
   if (window.lligaDesti) window.lligaDesti(cont);
   const x = cont.querySelector(".pop-xat");
   if (x) x.dataset.nom = `${lin} → ${t.destino}`;
   if (pestanyaActiva(cont) === "reg") omplirRegistre(cont.querySelector(".pop-reg-llista"));
 }
 
-// retard ara mateix respecte a l'horari de pas (calculat al servidor)
+// Retard respecte a l'horari de pas. El servidor el calcula a cada pasada per
+// a cada pròxima parada (t.retards); el tren avança entre pasades, així que es
+// mostra el de la primera parada que encara no ha passat (abans quedava fix el
+// de la primera parada de la pasada: «programat a Campanar» camí d'Àngel Guimerà).
+function retardActual(t) {
+  const rs = t.retards || (t.retraso ? [t.retraso] : []);
+  const tau = Math.max(0, Math.floor(serverNow() / 1000) - ultimoTs);
+  return rs.find((r) => r.eta == null || r.eta > tau) || null;
+}
 function retardTren(t) {
-  const r = t.retraso;
+  const r = retardActual(t);
   if (!r) return "";
   const d = r.retraso_s, min = Math.round(Math.abs(d) / 60);
   const [col, txt] = Math.abs(d) < 90 ? ["#4ade80", "va a l'hora"]
     : d > 0 ? [d >= 180 ? "#f87171" : "#fbbf24", `va <b>+${min} min</b> tard`]
     : ["#38bdf8", `va <b>${min} min</b> avançat`];
-  return `<br><span style="color:${col}">${txt}</span>
-    <span style="color:#9a9aac">· programat a ${r.estacion} a les ${r.hora_prog}</span>`;
+  return `<span style="color:${col}">${txt}</span>
+    <span style="color:#9a9aac">· a ${r.estacion} programat a les ${r.hora_prog}</span>`;
 }
 
 /* ---------- posar en fila els trens que comparteixen via ---------- */
@@ -722,8 +733,17 @@ function animar() {
       }
     }
     if (e.marker.isPopupOpen()) {
-      const b = e.marker.getPopup().getElement()?.querySelector(".c-eta");
-      if (b) b.textContent = fmtEta(proxParada(t).eta);
+      const el = e.marker.getPopup().getElement();
+      const pp = proxParada(t);
+      const b = el?.querySelector(".c-eta");
+      if (b) b.textContent = fmtEta(pp.eta);
+      const n = el?.querySelector(".c-prox");
+      if (n && n.textContent !== pp.nom) n.textContent = pp.nom;
+      const rt = el?.querySelector(".c-ret");
+      if (rt) {                       // canvia quan el tren passa la parada de referència
+        const html = retardTren(t);
+        if (rt.dataset.h !== html) { rt.innerHTML = html; rt.dataset.h = html; }
+      }
     }
   }
 }

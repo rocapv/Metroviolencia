@@ -157,7 +157,7 @@ def test_trains_desde_tabla_trenes(cliente, extracto, tmp_path):
                 "eta_seg", "origen", "waypoints", "retraso"} <= set(t)
         assert isinstance(t["waypoints"], list) and t["waypoints"][0]["eta"] == 0
 
-        assert t["retraso"] is None or {"retraso_s", "estacion", "hora_prog"} == set(t["retraso"])
+        assert t["retraso"] is None or {"retraso_s", "estacion", "hora_prog", "eta"} == set(t["retraso"])
         if t["origen"]:
             assert t["retraso"] is None
     # con horario de paso del día hay retrasos en vivo calculados para algunos

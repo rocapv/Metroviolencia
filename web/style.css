@@ -520,3 +520,5 @@ body.mode-historia .leaflet-marker-pane .leaflet-marker-icon:not(.hist-icona) { 
   #hist-panell { top: auto; bottom: 12px; left: 16px; right: 16px; transform: none; width: auto; }
   .hist-llista .pop-reg-llista { max-height: 140px; }
 }
+.pop-alerta { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.c-ret { margin-top: 2px; }
