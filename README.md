@@ -110,7 +110,7 @@ en ruta y calculadora de rutas con los trenes en vivo que hay que coger.
 | `GET /api/arrivals` | – | Llegadas crudas del último snapshot agrupadas por estación |
 | `GET /api/registre_estacio` | `estacio` | Pasos reales de hoy por la estación frente a su hora programada |
 | `GET /api/registre_tren` | `id` | Paso por estación de un tren hoy: horario frente a paso real (`previst` = aún por delante) |
-| `GET /api/historia_tren` | `id` | Recorrido de un tren aunque ya no circule: posición en cada pasada (`punts`), pasos por estación y cómo acabó (`estat`: `viu`, `arribat`, `perdut` = desaparece a mitad de trayecto) |
+| `GET /api/historia_tren` | `id` | Recorrido ENTERO de un tren aunque ya no circule: une todos los trozos del mismo tren (`trossos`, ver `finals.cadena`) y empieza cuando sale (la espera en cabecera va en `espera`); posición en cada pasada (`punts`), pasos por estación y cómo acabó (`estat`: `viu`, `arribat`, `perdut`). Si es `perdut`, `final.veredicte` dice qué pasó: `continua` (lo perdimos pero siguió; `seguit_per`), `cancellat`, `retirat`, `sense_dades`, `pendent`, `indeterminat` (ver `backend/finals.py`) |
 | `GET /api/simulacio` | `dia`, `fins` (HH:MM) | Todas las pasadas de una mañana desde la apertura, para reproducirlas (`?sim=AAAA-MM-DD` en la web) |
 | `GET /api/ruta` | `origen`, `destino` (ids) | `dia`, `ventana` (`2h`/`hoy`/`manana`) y alternativas con pasos, líneas, trenes en vivo (`eta_subida`, `desfase_s`, `hora_prog`), `proxima_prog`, `sin_tren` |
 | `GET /api/retards_ruta` | `dia` (YYYY-MM-DD, hoy por defecto) | Retrasos en ruta: resumen por línea de la última hora y del día (`n`, `mediana_s`, `tarde`) y `tarde_recientes` (pasos a >=3 min en los últimos 45 min) |
