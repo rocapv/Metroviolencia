@@ -70,6 +70,16 @@ def historia(con, net, track_id: int) -> dict | None:
                       "destino": destino, "origen": bool(origen)})
     if not punts:
         return None
+    # Espera en capçalera abans d'eixir: FGV anuncia la pròxima eixida molt
+    # abans, i eixe «tren en espera» pot durar hores (03/11: 49 ids més d'1 h,
+    # un 16 h a Machado) mentre n'ixen d'altres. No és el tren circulant: el
+    # recorregut comença quan es posa en marxa (dos punts seguits fora de capçalera).
+    espera = None
+    i = next((k for k in range(len(punts)) if not punts[k]["origen"]
+              and (k + 1 >= len(punts) or not punts[k + 1]["origen"])), None)
+    if i is not None and i > 1:
+        espera = {"des_de": punts[0]["ts"], "fins": punts[i - 1]["ts"]}
+        punts = punts[i - 1:]
     ult_id = trossos[-1]["id"]
     sid, ts, linea, destino, color, origen, d, via, wps, prox = filas[-1]
     via = via or linea
@@ -106,11 +116,13 @@ def historia(con, net, track_id: int) -> dict | None:
                 if e.get("previst") and not ultim:
                     continue
                 estacions.append(e)
+    if espera:
+        estacions = [e for e in estacions if e["ts"] >= espera["fins"] - 60]
     estacions.sort(key=lambda e: (e.get("previst", False), e["ts"]))
     return {
         "id": track_id, "id_actual": ult_id, "trossos": trossos,
         "linea": linea, "destino": destino, "color": color, "via": via,
-        "estat": estat, "final": final,
+        "estat": estat, "final": final, "espera": espera,
         "fi": {"ts": ts, "d": round(d, 1) if d is not None else None, "via": via,
                "prox": prox, "origen": bool(origen)},
         "punts": punts,

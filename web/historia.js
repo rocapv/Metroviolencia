@@ -299,6 +299,9 @@
     const unit = tr.length > 1
       ? ` <span class="hist-mut" title="El seguiment el va perdre i retrobar amb un altre número: ${tr.map((t) => "#" + t.id).join(" → ")}">` +
         `recorregut sencer: ${tr.length} trossos units</span>` : "";
+    const esp = j.espera
+      ? ` <span class="hist-mut" title="FGV anuncia la pròxima eixida molt abans: eixe temps no circulava">` +
+        `esperava en capçalera des de les ${hora(j.espera.des_de)}</span>` : "";
     const vels = [30, 60, 120, 300, 600];
     const div = document.createElement("section");
     div.id = "hist-panell";
@@ -307,7 +310,7 @@
       `<div class="hist-cap">${capCompartir(`${chip}→ ${j.destino} <span class="pop-id">#${j.id}</span>`,
         String(j.id), `el tren ${lin} cap a ${j.destino}`, "pop-tren-nom")}` +
       `<button type="button" class="hist-tanca" aria-label="Tanca el recorregut">×</button></div>` +
-      `<div class="hist-sub">${estat} <span class="hist-mut">${hora(h.ini)}–${hora(h.fi)}</span>${unit}</div>` +
+      `<div class="hist-sub">${estat} <span class="hist-mut">${hora(h.ini)}–${hora(h.fi)}</span>${unit}${esp}</div>` +
       `<div class="hist-ctrl"><button type="button" id="hist-play" aria-label="Pausa">❚❚</button>` +
       `<span id="hist-hora"></span>` +
       `<input id="hist-pos" type="range" min="0" max="1000" value="0" aria-label="Moment del recorregut">` +
