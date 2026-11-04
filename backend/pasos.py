@@ -639,21 +639,29 @@ def registro_tren(con, net, track_id: int, ahora: int | None = None) -> list[dic
     if not filas:
         return []
     tss = [f[0] for f in filas]
-    vista: dict[tuple, tuple] = {}   # (sid, linea, destino) -> (ts, eta) de la última pasada que la vio
+    # (viatge, sid, linea, destino) -> (ts, eta) de la última pasada que la vio.
+    # `viatge` compta els canvis de (línia, destí): un id que dura un torn
+    # sencer (els girs en capçalera conserven el número) passa moltes vegades
+    # per la mateixa estació, i sense açò només en quedava l'última.
+    vista: dict[tuple, tuple] = {}
+    viatge, anterior = 0, None
     for ts, linea, destino, wps in filas:
+        if anterior is not None and (linea, destino) != anterior:
+            viatge += 1
+        anterior = (linea, destino)
         for wp in json.loads(wps or "[]"):
             nom, eta = wp.get("nom"), wp.get("eta")
             if not nom or eta is None or eta >= HORIZONTE:
                 continue
             sid = net.id_por_nombre(nom)
             if sid is not None:
-                vista[(sid, linea, destino)] = (ts, eta)
+                vista[(viatge, sid, linea, destino)] = (ts, eta)
     ultima = tss[-1]
     prog = _prog_dia(con, dia)
     dudosos = incoherentes(con, net, dia) if prog else set()
     sent = sentidos_inferidos(con, net, dia) if prog else {}
     out = []
-    for (sid, linea, destino), (ts, eta) in vista.items():
+    for (_v, sid, linea, destino), (ts, eta) in vista.items():
         previst = ts == ultima
         if previst:
             paso = ts + eta

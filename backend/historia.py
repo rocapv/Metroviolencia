@@ -20,6 +20,7 @@ També els noms d'URL de les estacions (metro.pr1.es/burjassot).
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 import re
 import unicodedata
@@ -89,12 +90,22 @@ def historia(con, net, track_id: int) -> dict | None:
     final = finals.veredicte(con, net, ult_id) if estat == "perdut" else None
     # pas per estació de cada tros; les «previstes» d'un tros que no és l'últim
     # les va passar el tros següent: fora
+    # registro_tren va per dia natural: un tros que passa de mitjanit es mira
+    # dia a dia (si no, es perdia el de abans de les 00:00)
     estacions = []
     for k, t in enumerate(trossos):
-        for e in registro_tren(con, net, t["id"], ahora=t["fi"]):
-            if e.get("previst") and k < len(trossos) - 1:
-                continue
-            estacions.append(e)
+        dies = []
+        d = dt.date.fromtimestamp(t["ini"])
+        while d <= dt.date.fromtimestamp(t["fi"]):
+            fi_dia = int(dt.datetime.combine(d + dt.timedelta(days=1), dt.time()).timestamp()) - 1
+            dies.append(min(t["fi"], fi_dia))
+            d += dt.timedelta(days=1)
+        for j, ahora in enumerate(dies):
+            ultim = k == len(trossos) - 1 and j == len(dies) - 1
+            for e in registro_tren(con, net, t["id"], ahora=ahora):
+                if e.get("previst") and not ultim:
+                    continue
+                estacions.append(e)
     estacions.sort(key=lambda e: (e.get("previst", False), e["ts"]))
     return {
         "id": track_id, "id_actual": ult_id, "trossos": trossos,
