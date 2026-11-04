@@ -362,3 +362,42 @@ def test_llega_a_destino(net):
     assert llega_a_destino(net, 1, 1, nom, [{"d": d_fin - 1500, "eta": 0}])
     assert not llega_a_destino(net, 1, 1, nom, [{"d": d_fin - 20000, "eta": 0}])
     assert not llega_a_destino(net, 1, 1, "No existeix", [{"d": d_fin, "eta": 0}])
+
+
+# ---------------------------------------------------------- rescat a mitja línia
+
+def _perdut(tid=5, desti="Bétera", ts=1000):
+    return {"track_id": tid, "linea": 1, "destino": desti, "via": 1, "ts": ts,
+            "waypoints": [{"d": 1000, "eta": 0}, {"d": 3000, "eta": 200}]}
+
+
+def test_rescat_mateix_desti_on_havia_d_estar():
+    from backend import tracking
+    # a tau=120 havia d'estar a d=2200; apareix un id nou a 2900: és ell
+    nous = [{"track_id": 9, "linea": 1, "destino": "Bétera", "via": 1, "d": 2900, "dir": 1}]
+    assert tracking.rescats([_perdut()], nous, 1120) == {9: 5}
+    # massa lluny (més de RESCAT_AVANT davant del previst) o massa enrere: no
+    lluny = [{"track_id": 9, "linea": 1, "destino": "Bétera", "via": 1, "d": 2200 + 2600, "dir": 1}]
+    enrere = [{"track_id": 9, "linea": 1, "destino": "Bétera", "via": 1, "d": 400, "dir": 1}]
+    assert tracking.rescats([_perdut()], lluny, 1120) == {}
+    assert tracking.rescats([_perdut()], enrere, 1120) == {}
+
+
+def test_rescat_amb_altre_desti_rotulat_cal_mateix_sentit_i_prop():
+    from backend import tracking
+    nou = {"track_id": 9, "linea": 1, "destino": "Castelló", "via": 1, "d": 2500, "dir": 1}
+    assert tracking.rescats([_perdut(desti="València Sud")], [nou], 1120) == {9: 5}
+    assert tracking.rescats([_perdut(desti="València Sud")], [dict(nou, dir=-1)], 1120) == {}
+    assert tracking.rescats([_perdut(desti="València Sud")], [dict(nou, d=4000)], 1120) == {}
+    # una altra línia mai
+    assert tracking.rescats([_perdut()], [dict(nou, linea=2, destino="Bétera")], 1120) == {}
+
+
+def test_rescat_un_a_un_i_primer_el_mateix_desti():
+    from backend import tracking
+    nous = [{"track_id": 9, "linea": 1, "destino": "Bétera", "via": 1, "d": 2700, "dir": 1},
+            {"track_id": 10, "linea": 1, "destino": "Castelló", "via": 1, "d": 2200, "dir": 1}]
+    res = tracking.rescats([_perdut()], nous, 1120)
+    assert res == {9: 5}                     # el del mateix destí guanya encara que estiga més lluny
+    dos = [_perdut(5), dict(_perdut(6), waypoints=[{"d": 5000, "eta": 0}, {"d": 7000, "eta": 200}])]
+    assert tracking.rescats(dos, nous[:1], 1120) == {9: 5}   # un sol nou: per al més pròxim

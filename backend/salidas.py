@@ -261,20 +261,20 @@ def resumen(filas: list[dict]) -> dict:
 
 def reprocesar(con: sqlite3.Connection, desde: int) -> int:
     """Rehace salidas_obs desde `desde` a partir de las pasadas guardadas en
-    `arrivals` (histórico). Borra lo que hubiera desde ese instante. Parar el
+    `lectures` (histórico, 7 días). Borra lo que hubiera desde ese instante. Parar el
     poller antes: si no, las dos escrituras se pisan."""
     init_db(con)
     con.execute("DELETE FROM salidas_obs WHERE ts_primera>=?", (desde,))
     con.execute("UPDATE salidas_obs SET estado='sin_datos' WHERE estado='en_espera'")
-    ids = ",".join(str(c["id"]) for c in CABECERAS)
+    from . import lectures
+    ids = {c["id"] for c in CABECERAS}
     snaps = con.execute("SELECT id, ts FROM snapshots WHERE ts>=? ORDER BY id",
                         (desde,)).fetchall()
     for snap_id, ts in snaps:
         por: dict[int, list] = {}
-        for est, lin, dest, eta in con.execute(
-                f"SELECT estacion_id,linea,destino,eta_seg FROM arrivals "
-                f"WHERE snapshot_id=? AND estacion_id IN ({ids})", (snap_id,)):
-            por.setdefault(est, []).append((lin, dest, eta))
+        for est, lin, dest, eta, *_ in lectures.de_pasada(con, snap_id):
+            if est in ids:
+                por.setdefault(est, []).append((lin, dest, eta))
         actualizar(con, ts, por)
     return len(snaps)
 

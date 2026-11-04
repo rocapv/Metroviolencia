@@ -8,7 +8,7 @@ Uso:
 
 Tablas SQLite (data/metro.db):
     snapshots(id, ts)                                  -- una fila por pasada
-    arrivals(snapshot_id, ts, estacion_id, linea, destino, eta_seg, eta_txt, ocupacion)
+    lectures(snapshot_id, ts, dades)   -- arribades de la pasada, un blob (ver lectures.py)
     horario_prog / horario_descargas   -- ver horarios.py (salidas programadas)
     salidas_obs                        -- ver salidas.py (salidas reales)
 """
@@ -25,12 +25,12 @@ from pathlib import Path
 
 import requests
 
-from . import horarios, pasos, purga, salidas, xat
+from . import horarios, pasos, purga, salidas, xat, lectures
 from .cabeceras import CABECERAS
 from .network import load_network
 from .parser import parse_arrivals
 from .positions import estimar
-from .tracking import herencias, llega_a_destino, track
+from .tracking import RESCAT_S, herencias, llega_a_destino, rescats, track
 
 # El certificado de metrovalencia.es llega con la cadena incompleta (falta el
 # intermedio de Sectigo). Estrategia de verificación TLS, por orden:
@@ -126,18 +126,8 @@ CREATE TABLE IF NOT EXISTS snapshots (
     ts     INTEGER NOT NULL,          -- inicio de la pasada (referencia de las ETAs)
     ts_fin INTEGER                    -- fin de la pasada: los datos ya están servidos
 );
-CREATE TABLE IF NOT EXISTS arrivals (
-    snapshot_id INTEGER NOT NULL,
-    ts          INTEGER NOT NULL,
-    estacion_id INTEGER NOT NULL,
-    linea       INTEGER NOT NULL,
-    destino     TEXT    NOT NULL,
-    eta_seg     INTEGER NOT NULL,
-    eta_txt     TEXT,
-    ocupacion   INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_arr_snap ON arrivals(snapshot_id);
-CREATE INDEX IF NOT EXISTS idx_arr_est  ON arrivals(estacion_id, ts);
+-- (arrivals: una fila per arribada; des del 04/11/2026 són a `lectures`, un
+-- blob per pasada, ver lectures.py)
 
 -- Registro NoInfo: por pasada, las líneas esperadas que NO dieron ninguna
 -- llegada (la fuente no informó). Sirve para saber "cuándo faltó dato".
@@ -205,6 +195,9 @@ def make_session() -> requests.Session:
 
 def init_db() -> sqlite3.Connection:
     con = sqlite3.connect(DB, timeout=60)
+    # SQLite de Debian ve amb secure_delete=1: cada pàgina alliberada es reescriu
+    # amb zeros (i passa pel journal). Són dades públiques: fora, que la SD patix.
+    con.execute("PRAGMA secure_delete=OFF")
     try:   # bases anteriores a la columna motivo
         con.execute("ALTER TABLE lecturas_fallidas ADD COLUMN motivo TEXT NOT NULL DEFAULT 'error'")
     except sqlite3.OperationalError:
@@ -219,6 +212,7 @@ def init_db() -> sqlite3.Connection:
         pass
     con.executescript(SCHEMA)
     con.commit()
+    lectures.init_db(con)
     horarios.init_db(con)
     salidas.init_db(con)
     pasos.init_db(con)
@@ -287,11 +281,7 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
     if fallidas:
         con.executemany("INSERT INTO lecturas_fallidas(snapshot_id,ts,estacion_id,motivo)"
                         " VALUES (?,?,?,?)", fallidas)
-    con.executemany(
-        "INSERT INTO arrivals(snapshot_id,ts,estacion_id,linea,destino,eta_seg,eta_txt,ocupacion)"
-        " VALUES (?,?,?,?,?,?,?,?)",
-        rows,
-    )
+    lectures.guarda(con, snap_id, ts, [r[2:] for r in rows])
     # NoInfo: líneas esperadas sin ninguna llegada en esta pasada
     lineas_con_datos = {r[3] for r in rows}
     ni = [(snap_id, ts, l) for l in LINEAS_ESPERADAS if l not in lineas_con_datos]
@@ -371,6 +361,7 @@ def track_snapshot(con: sqlite3.Connection, net, snap_id: int, ts: int, rows: li
         for nuevo, viejo in her.items():
             con.execute("UPDATE trenes SET track_id=? WHERE track_id=?", (viejo, nuevo))
         ids = [her.get(i, i) for i in ids]
+    ids = _rescata(con, net, ts, prev_row, prev, curr, ids, next_id, acaban, vias)
     filas = []
     for i, t in enumerate(curr):
         d0 = t.waypoints[0]["d"] if t.waypoints else None
@@ -384,6 +375,38 @@ def track_snapshot(con: sqlite3.Connection, net, snap_id: int, ts: int, rows: li
     )
     con.commit()
     return len(filas)
+
+
+def _rescata(con, net, ts, prev_row, prev, curr, ids, next_id, acaban, vias) -> list:
+    """Un tren perdut a mitjan trajecte (en la pasada anterior o en les de fa
+    menys de RESCAT_S) que reapareix ara amb un id nou conserva el seu número
+    (tracking.rescats). Només es miren ids estrenats en esta pasada."""
+    nous = [{"track_id": ids[i], "linea": t.linea, "destino": t.destino,
+             "via": t.via or t.linea, "d": t.waypoints[0]["d"],
+             "dir": 1 if t.waypoints[-1]["d"] >= t.waypoints[0]["d"] else -1}
+            for i, t in enumerate(curr) if ids[i] >= next_id and not t.origen and t.waypoints]
+    if not nous or not prev_row:
+        return ids
+    vivos = set(ids)
+    fi_viatge = {a["track_id"] for a in acaban}
+    perduts = [dict(p, ts=prev_row[1]) for p in prev
+               if p["track_id"] not in vivos and p["track_id"] not in fi_viatge]
+    desde = con.execute("SELECT MIN(id) FROM snapshots WHERE ts>=?", (ts - RESCAT_S,)).fetchone()[0]
+    if desde is not None:
+        for tid, tts, lin, dest, via, wps in con.execute(
+                "SELECT t.track_id, t.ts, t.linea, t.destino, t.via, t.waypoints FROM trenes t "
+                "JOIN (SELECT track_id, MAX(snapshot_id) s FROM trenes WHERE snapshot_id>=? "
+                "GROUP BY track_id) u ON t.track_id=u.track_id AND t.snapshot_id=u.s "
+                "WHERE t.snapshot_id<? AND t.origen=0", (desde, prev_row[0])):
+            if tid in vivos:
+                continue
+            wps = json.loads(wps or "[]")
+            if not wps or llega_a_destino(net, lin, via or lin, dest, wps):
+                continue
+            perduts.append({"track_id": tid, "linea": lin, "destino": dest, "via": via or lin,
+                            "ts": tts, "waypoints": wps})
+    res = rescats(perduts, nous, ts, vias)
+    return [res.get(i, i) for i in ids] if res else ids
 
 
 _hilo_horario: threading.Thread | None = None

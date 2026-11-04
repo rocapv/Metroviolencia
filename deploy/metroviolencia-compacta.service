@@ -1,0 +1,9 @@
+[Unit]
+Description=Metroviolencia · compacta metro.db si sobra espai (VACUUM de matinada)
+
+[Service]
+Type=oneshot
+User=roca
+WorkingDirectory=/home/roca/Metroviolencia
+ExecStart=/home/roca/Metroviolencia/.venv/bin/python -m backend.purga --compacta
+Nice=10

@@ -28,7 +28,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import pasos, rutas, salidas, xat
+from . import historia, lectures, pasos, rutas, salidas, xat
 from .calendario import tipo as tipo_dia
 from .network import load_network
 from .positions import estimar
@@ -123,7 +123,7 @@ async def auth_token(request: Request, call_next):
 
 
 def _con() -> sqlite3.Connection:
-    con = sqlite3.connect(DB)
+    con = sqlite3.connect(DB, timeout=15)   # WAL: la lectura no espera; l'escriptura del xat, poc
     con.row_factory = sqlite3.Row
     return con
 
@@ -143,11 +143,8 @@ def arrivals():
     snap = _last_snapshot(con)
     if not snap:
         return {"ts": None, "estaciones": {}}
-    rows = con.execute(
-        "SELECT estacion_id,linea,destino,eta_seg,eta_txt FROM arrivals "
-        "WHERE snapshot_id=? ORDER BY estacion_id,eta_seg",
-        (snap["id"],),
-    ).fetchall()
+    rows = [dict(zip(("estacion_id", "linea", "destino", "eta_seg", "eta_txt"), r[:5]))
+            for r in lectures.de_pasada(con, snap["id"])]
     # desfase de cada llegada frente a su hora programada de paso (se ve al
     # tocar la estación); el horario y los sentidos se cargan UNA vez por pasada
     import datetime as dt
@@ -239,6 +236,17 @@ def registre_estacio(estacio: int):
                      lambda con: pasos.registro_estacion(con, net, estacio, dia))
 
 
+@app.get("/api/historia_tren")
+def historia_tren(id: int):
+    """Recorregut passat d'un tren (encara que ja no circule): posició a cada
+    pasada, pas per estació frente a l'horari i com va acabar (viu / arribat /
+    perdut a mitjan trajecte). Ver historia.py."""
+    res = historia.historia(_con(), _net(), id)
+    if res is None:
+        return JSONResponse({"error": "no hi ha registre d'eixe tren"}, status_code=404)
+    return res
+
+
 @app.get("/api/registre_tren")
 def registre_tren(id: int):
     """Paso por estación de un tren (track_id) hoy: horario frente a paso real."""
@@ -253,7 +261,7 @@ def simulacio(dia: str | None = None, fins: str = "10:00"):
     """Totes les pasades d'un dia des de l'obertura (primer tren en marxa
     després de les 03:00, menys SIM_PREVI) fins a l'hora `fins`, amb els trens
     tal com els va veure el poller. La web les reprodueix com si fóra en
-    directe. La taula `trenes` guarda 3 dies."""
+    directe. La taula `trenes` guarda 7 dies (purga.RETENER_TRENES)."""
     import datetime as dt
     try:
         d = dt.date.fromisoformat(dia) if dia else dt.date.today()
@@ -400,11 +408,7 @@ def trains():
     snap = _last_snapshot(con)
     if not snap:
         return {"ts": None, "trenes": []}
-    rows = con.execute(
-        "SELECT estacion_id,linea,destino,eta_seg FROM arrivals WHERE snapshot_id=?",
-        (snap["id"],),
-    ).fetchall()
-    llegadas = [(r["estacion_id"], r["linea"], r["destino"], r["eta_seg"]) for r in rows]
+    llegadas = [r[:4] for r in lectures.de_pasada(con, snap["id"])]
     net = load_network()
     trenes = [t.to_dict() for t in estimar(net, llegadas)]
     return {"ts": snap["ts"], "edad_seg": int(time.time()) - snap["ts"],
@@ -466,8 +470,7 @@ def ruta(origen: int, destino: int):
     snap = _last_snapshot(con)
     llegadas: dict[int, list] = {}
     if snap:
-        for r in con.execute("SELECT estacion_id,linea,destino,eta_seg FROM arrivals "
-                             "WHERE snapshot_id=?", (snap["id"],)):
+        for r in lectures.de_pasada(con, snap["id"]):
             llegadas.setdefault(r[0], []).append((r[1], r[2], r[3]))
     alts = rutas.enriquecer(
         net, [dict(a, pasos=[dict(p) for p in a["pasos"]]) for a in res["alternativas"]],
@@ -543,6 +546,58 @@ def health():
     n = con.execute("SELECT COUNT(*) c FROM snapshots").fetchone()["c"]
     return {"ok": True, "snapshots": n,
             "ultimo_ts": snap["ts"] if snap else None}
+
+
+# ---------------------------------------------------------------- enllaços
+# metro.pr1.es/burjassot obri l'estació; metro.pr1.es/1234, el tren (o el seu
+# recorregut si ja no circula). Les dues són la mateixa pàgina: la web llig el
+# camí. Un nom que no és cap estació torna a l'inici.
+from starlette.convertors import Convertor, register_url_convertor  # noqa: E402
+from fastapi.responses import FileResponse, RedirectResponse  # noqa: E402
+
+
+class _Enllac(Convertor):
+    regex = "[a-z0-9]+"
+
+    def convert(self, value: str) -> str:
+        return value
+
+    def to_string(self, value: str) -> str:
+        return value
+
+
+register_url_convertor("enllac", _Enllac())
+_slugs_cache: dict[str, int] = {}
+
+
+def _index():
+    return FileResponse(WEB / "index.html")
+
+
+@app.get("/", include_in_schema=False)
+def inici():
+    return _index()
+
+
+@app.get("/{enllac:enllac}", include_in_schema=False)
+def enllac(enllac: str):
+    # una pàgina pròpia amb eixe nom (p. ex. /privacitat -> privacitat.html) mana
+    if (WEB / f"{enllac}.html").is_file():
+        return FileResponse(WEB / f"{enllac}.html")
+    if (WEB / enllac / "index.html").is_file():
+        return RedirectResponse(enllac + "/", status_code=301)
+    if not _slugs_cache:
+        _slugs_cache.update(historia.slugs(_net()))
+    if enllac.isdigit() or enllac in _slugs_cache:
+        return _index()
+    return RedirectResponse("./", status_code=302)
+
+
+@app.get("/{enllac:enllac}/", include_in_schema=False)
+def enllac_barra(enllac: str):
+    if (WEB / enllac / "index.html").is_file():
+        return FileResponse(WEB / enllac / "index.html")
+    return RedirectResponse("../" + enllac, status_code=301)
 
 
 if WEB.exists():

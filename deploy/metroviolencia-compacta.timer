@@ -1,0 +1,11 @@
+# Instal·lar: sudo cp deploy/metroviolencia-compacta.* /etc/systemd/system/ &&
+#   sudo systemctl daemon-reload && sudo systemctl enable --now metroviolencia-compacta.timer
+[Unit]
+Description=Metroviolencia · compactació de metro.db cada matinada
+
+[Timer]
+OnCalendar=*-*-* 03:30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -56,7 +56,25 @@ let porNomGlobal = {};             // nom estació -> objecte estació
 let arrivalsCache = { ts: 0, estaciones: {} };
 let popupEstacio = null;           // {estId, cont, popup} de l'estació oberta (es refresca a cada pasada)
 const registreCache = new Map();   // "tren:ID"/"estacio:ID" -> {ts de la pasada, files}
-const registreObert = new Set();   // registres desplegats (sobreviuen al refresc del popup)
+
+// Enllaços directes: metro.pr1.es/burjassot (estació) i metro.pr1.es/1234 (tren;
+// si ja no circula, el seu recorregut). La barra d'adreces segueix el popup obert.
+const URL_PUBLICA = "https://metro.pr1.es/";
+const BASE = location.pathname.replace(/[^/]*$/, "");          // "/" o "/metroviolencia/" (LAN)
+let ENLLAC_INICIAL = "";
+try { ENLLAC_INICIAL = decodeURIComponent(location.pathname.slice(BASE.length)).toLowerCase(); } catch (e) { /* camí mal format */ }
+// igual que historia.slug() al servidor: 'Àngel Guimerà' -> 'angelguimera'
+const slugEstacio = (nom) => nom.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase().replace(/[^a-z0-9]/g, "");
+let enllacActiu = "";
+function posaEnllac(cami) {
+  if (window.simActiva && window.simActiva()) return;          // la simulació té la seua URL
+  enllacActiu = cami;
+  try { history.replaceState(null, "", BASE + cami + location.search + location.hash); } catch (e) { /* file:// */ }
+}
+function llevaEnllac(cami) { if (enllacActiu === cami) posaEnllac(""); }
+window.posaEnllac = posaEnllac;
+window.llevaEnllac = llevaEnllac;
 let rutaFiltre = null;             // Set d'ids de tren de la ruta activa (null = tots)
 
 // Compensació de ping/rellotge: el servidor (Raspa) marca el temps dels trens amb
@@ -447,25 +465,34 @@ function pintarTrenes(trenes) {
     if (best && bestD < 1500) {   // mateix tren físic: reaprofita el marcador
       best.usado = true; best.tren = t;
       const k = classeRetard(t);
-      if (best.kRet !== k) { best.marker.setIcon(iconoTren(t)); best.kRet = k; }
+      if (best.kRet !== k) {
+        best.marker.setIcon(iconoTren(t)); best.kRet = k;
+        if (best.marker.isPopupOpen()) seleccionat(best.marker, true);   // l'icona nova també
+      }
       // NO reposicionem ací: animar() suavitza la posició (e.dViz) cada frame,
       // així no es produeix cap salt al refrescar (ni cap avant ni cap arrere).
-      best.marker.setPopupContent(popupTren(t));
       if (best.marker.isPopupOpen()) {
-        const el = best.marker.getPopup().getElement();
-        if (window.xatOmpliPopup) window.xatOmpliPopup(el);
-        if (window.lligaDesti) window.lligaDesti(el);
-        lligaRegistres(el, best.marker.getPopup());
+        if (best.cont && best.cont.dataset.id !== String(t.id)) {   // ara és un altre tren: popup nou
+          best.cont = null;
+          best.marker.getPopup().update();
+          if (t.id != null) posaEnllac(String(t.id));
+        } else actualitzaContTren(best);
       }
     } else {
-      const marker = L.marker(ll, { icon: iconoTren(t) }).bindPopup(popupTren(t));
-      marker.on("popupopen", (ev) => {
-        if (window.xatOmpliPopup) window.xatOmpliPopup(ev.popup.getElement());
-        if (window.lligaDesti) window.lligaDesti(ev.popup.getElement());
-        lligaRegistres(ev.popup.getElement(), ev.popup);
+      const ent = { tren: t, usado: true, kRet: classeRetard(t), cont: null };
+      ent.marker = L.marker(ll, { icon: iconoTren(t) })
+        .bindPopup(() => contTren(ent), { minWidth: 270, maxWidth: 270 });
+      ent.marker.on("popupopen", () => {
+        actualitzaContTren(ent);
+        seleccionat(ent.marker, true);
+        if (ent.tren.id != null) posaEnllac(String(ent.tren.id));
       });
-      marker.addTo(trenLayer);
-      nuevos.push({ marker, tren: t, usado: true, kRet: classeRetard(t) });
+      ent.marker.on("popupclose", () => {
+        seleccionat(ent.marker, false);
+        if (ent.tren.id != null) llevaEnllac(String(ent.tren.id));
+      });
+      ent.marker.addTo(trenLayer);
+      nuevos.push(ent);
     }
   }
   // esborrar marcadors no reaprofitats i reconstruir el mapa
@@ -530,18 +557,53 @@ function rumbPantalla(t, d) {
   return Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI;
 }
 
-function popupTren(t) {
-  const c = "#" + (t.color || "888");
+// Popup d'un tren: UN element per marcador. A cada pasada només s'actualitzen la
+// capçalera i «Ara»; la pestanya oberta (Horari, Xat) segueix oberta.
+function contTren(ent) {
+  const t = ent.tren;
+  if (ent.cont && ent.cont.dataset.id === String(t.id)) return ent.cont;
+  const cont = document.createElement("div");
+  cont.className = "pop-tren";
+  cont.dataset.id = String(t.id);
+  cont.innerHTML = `<div class="pop-tren-cap"></div>`;
+  const ara = `<div class="pop-tren-ara"></div>`;
+  if (t.id != null) {
+    cont.appendChild(ferPestanyes([
+      { clau: "ara", titol: "Ara", html: ara },
+      { clau: "reg", titol: "Horari", html: `<div class="pop-reg-llista" data-clau="tren:${t.id}">carregant…</div>` },
+      { clau: "xat", titol: "Xat", html: `<div class="pop-xat" data-tipus="tren" data-lloc="${t.id}"></div>` },
+    ], (clau, panell) => {
+      if (clau === "reg") omplirRegistre(panell.querySelector(".pop-reg-llista"));
+      if (clau === "xat") ompleXat(panell);
+      if (ent.cont === cont && ent.marker.isPopupOpen()) mantinVisible(cont);
+    }));
+  } else cont.insertAdjacentHTML("beforeend", ara);
+  ent.cont = cont;
+  actualitzaContTren(ent);
+  return cont;
+}
+
+function actualitzaContTren(ent) {
+  const t = ent.tren, cont = ent.cont;
+  if (!cont) return;
+  const lin = NOMBRES_LINEA[t.linea] || "L" + t.linea;
+  const chip = `<span class="pop-linea" style="background:#${t.color || "888"}">${lin}</span>`;
+  const cap = cont.querySelector(".pop-tren-cap");
+  cap.innerHTML = t.id != null
+    ? capCompartir(`${chip}→ ${t.destino} <span class="pop-id">#${t.id}</span>`, String(t.id),
+        `el tren ${lin} cap a ${t.destino}`, "pop-tren-nom")
+    : `${chip}→ <b>${t.destino}</b>`;
+  lligaCompartir(cap);
   const p = proxParada(t);
   const espera = t.origen ? ' <span style="color:#e8c07a">(en eixida)</span>' : "";
-  const idTxt = t.id != null ? ` <span style="color:#6a6a7a">#${t.id}</span>` : "";
-  return `<span class="pop-linea" style="background:${c}">${NOMBRES_LINEA[t.linea] || "L" + t.linea}</span>
-    → <b>${t.destino}</b>${idTxt}${espera}<br>
-    <span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>` +
+  cont.querySelector(".pop-tren-ara").innerHTML =
+    `<span style="color:#9a9aac">pròxima parada: ${p.nom} · <b class="c-eta">${fmtEta(p.eta)}</b></span>${espera}` +
     retardTren(t) +
-    (t.id != null ? `<div class="pop-desti"><button data-desti="${t.id}">Quant tarda a… · avisa'm</button></div>` : "") +
-    (t.id != null ? seccioRegistre("tren:" + t.id, "Horari i pas per estació") : "") +
-    (t.id != null ? `<div class="pop-xat" data-tipus="tren" data-lloc="${t.id}" data-nom="${NOMBRES_LINEA[t.linea] || "L" + t.linea} → ${t.destino}"></div>` : "");
+    (t.id != null ? `<div class="pop-desti"><button data-desti="${t.id}">Quant tarda a… · avisa'm</button></div>` : "");
+  if (window.lligaDesti) window.lligaDesti(cont);
+  const x = cont.querySelector(".pop-xat");
+  if (x) x.dataset.nom = `${lin} → ${t.destino}`;
+  if (pestanyaActiva(cont) === "reg") omplirRegistre(cont.querySelector(".pop-reg-llista"));
 }
 
 // retard ara mateix respecte a l'horari de pas (calculat al servidor)
@@ -666,31 +728,142 @@ function animar() {
   }
 }
 
+/* ---------- selecció, enllaços i pestanyes (popups d'estació i de tren) ---------- */
+// Lo que té el popup obert deixa passar els clics: un segon clic al mateix lloc
+// arriba al que hi ha darrere (p. ex. l'estació tapada per un tren).
+function seleccionat(layer, si) {
+  const el = layer && layer.getElement ? layer.getElement() : null;
+  if (el) el.style.pointerEvents = si ? "none" : "";
+}
+
+const ICONA_COMPARTIR = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" ' +
+  'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+  '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>' +
+  '<line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>';
+
+// capçalera d'un popup: el nom (o línia i destí) i la icona de compartir; tots
+// dos copien l'enllaç directe (metro.pr1.es/burjassot, metro.pr1.es/1234)
+function capCompartir(contingut, cami, etiqueta, classe = "") {
+  return `<div class="pop-cap"><button type="button" class="pop-nom ${classe}" data-enllac="${cami}" ` +
+    `title="Copia l'enllaç">${contingut}</button>` +
+    `<button type="button" class="pop-share" data-enllac="${cami}" title="Copia l'enllaç" ` +
+    `aria-label="Copia l'enllaç a ${etiqueta}">${ICONA_COMPARTIR}</button></div>`;
+}
+function lligaCompartir(el) {
+  el.querySelectorAll("[data-enllac]").forEach((b) => { b.onclick = () => copiaEnllac(b.dataset.enllac); });
+}
+async function copiaEnllac(cami) {
+  const url = URL_PUBLICA + cami;
+  let ok = false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(url); ok = true; }
+  } catch (e) { /* sense permís: l'altra via */ }
+  if (!ok) {   // per http (LAN) el porta-retalls modern no hi és
+    const ta = document.createElement("textarea");
+    ta.value = url; ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+    document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    ta.remove();
+  }
+  avisCurt(ok ? `Enllaç copiat · ${url.replace(/^https?:\/\//, "")}` : `Copia l'enllaç: ${url}`, ok ? 2600 : 8000);
+}
+function avisCurt(text, ms = 2600) {
+  let el = document.getElementById("avis-curt");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "avis-curt"; el.setAttribute("role", "status"); el.setAttribute("aria-live", "polite");
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.add("on");
+  clearTimeout(avisCurt.t);
+  avisCurt.t = setTimeout(() => el.classList.remove("on"), ms);
+}
+window.avisCurt = avisCurt;
+window.copiaEnllac = copiaEnllac;
+
+// Pestanyes d'un popup: [{clau, titol, html}]. `obri(clau, panell)` es crida cada
+// vegada que se'n tria una; la primera queda triada en crear-les.
+function ferPestanyes(pestanyes, obri) {
+  const w = document.createElement("div");
+  w.className = "pop-tabs";
+  w.innerHTML = `<div class="pop-tab-barra" role="tablist">` +
+    pestanyes.map((p) => `<button type="button" role="tab" class="pop-tab" data-clau="${p.clau}">${p.titol}</button>`).join("") +
+    `</div>` +
+    pestanyes.map((p) => `<div class="pop-tab-panell" role="tabpanel" data-clau="${p.clau}" hidden>${p.html}</div>`).join("");
+  w.tria = (clau) => {
+    w.dataset.activa = clau;
+    w.querySelectorAll(".pop-tab").forEach((b) => {
+      const on = b.dataset.clau === clau;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    w.querySelectorAll(".pop-tab-panell").forEach((p) => { p.hidden = p.dataset.clau !== clau; });
+    obri(clau, w.querySelector(`.pop-tab-panell[data-clau="${clau}"]`));
+  };
+  w.querySelectorAll(".pop-tab").forEach((b) => { b.onclick = () => w.tria(b.dataset.clau); });
+  w.tria(pestanyes[0].clau);
+  return w;
+}
+const pestanyaActiva = (cont) => (cont && cont.querySelector(".pop-tabs")?.dataset.activa) || null;
+// el xat del lloc, de nou cada vegada que s'obri la pestanya (xat.js)
+function ompleXat(panell) {
+  const x = panell && panell.querySelector(".pop-xat");
+  if (!x || !window.xatOmpliPopup) return;
+  delete x.dataset.ple;
+  Promise.resolve(window.xatOmpliPopup(panell)).then(() => mantinVisible(panell));
+}
+
+// El popup creix cap amunt quan canvia de pestanya o arriba el contingut; Leaflet
+// només el reajusta en obrir-lo. Si ara ix de la pantalla, es mou el mapa.
+function mantinVisible(dins) {
+  const el = dins && dins.closest ? dins.closest(".leaflet-popup") : null;
+  if (!el) return;
+  const r = el.getBoundingClientRect(), m = map.getContainer().getBoundingClientRect();
+  const MARGE = 14;
+  let dx = 0, dy = 0;
+  if (r.top < m.top + MARGE) dy = r.top - (m.top + MARGE);
+  else if (r.bottom > m.bottom - MARGE) dy = Math.min(r.bottom - (m.bottom - MARGE), r.top - (m.top + MARGE));
+  if (r.left < m.left + MARGE) dx = r.left - (m.left + MARGE);
+  else if (r.right > m.right - MARGE) dx = r.right - (m.right - MARGE);
+  if (dx || dy) map.panBy([dx, dy], { animate: true, duration: 0.25 });
+}
+
 /* ---------- popup d'estació ---------- */
 async function obrirPopupEstacio(m) {
   if (window.destiTriaEstacio && window.destiTriaEstacio(m)) return;   // s'estava triant destí d'un tren
-  const chips = m.estLineas
-    .map((l) => `<span class="pop-linea" style="background:#${colores[l] || "888"}">${NOMBRES_LINEA[l] || "L" + l}</span>`)
-    .join("");
+  const slug = slugEstacio(m.estNom);
   const cont = document.createElement("div");
-  cont.innerHTML =
-    `<div class="pop-est-nom">${m.estNom}</div>` +
-    `<div class="pop-est-lin">${chips}</div>` +
-    `<div class="pop-ruta"><button data-r="orig">Des d'ací</button><button data-r="dest">Fins ací</button></div>` +
-    `<div class="pop-arr-tit">Pròximes arribades</div>` +
-    `<div class="pop-arr">carregant…</div>` +
-    `<div class="pop-canc"></div>` +
-    seccioRegistre("estacio:" + m.estId, "Registre del dia") +
-    `<div class="pop-xat" data-tipus="estacio" data-lloc="${m.estId}" data-nom="${m.estNom}"></div>`;
+  cont.className = "pop-estacio";
+  cont.innerHTML = capCompartir(m.estNom, slug, m.estNom, "pop-est-nom") +
+    `<div class="pop-est-lin">${m.estLineas.map(chipLinia).join("")}</div>` +
+    `<div class="pop-ruta"><button data-r="orig">Des d'ací</button><button data-r="dest">Fins ací</button></div>`;
   cont.querySelectorAll(".pop-ruta button").forEach((b) => b.onclick = () => {
     map.closePopup();
     if (window.rutaFixa) window.rutaFixa(b.dataset.r, m.estNom);
   });
-  const popup = L.popup({ maxWidth: 300, minWidth: 230 }).setLatLng(m.getLatLng()).setContent(cont).openOn(map);
-  const obert = { estId: m.estId, cont, popup };
+  lligaCompartir(cont);
+  let obert = null;
+  cont.appendChild(ferPestanyes([
+    { clau: "arr", titol: "Arribades", html: `<div class="pop-arr">carregant…</div><div class="pop-canc"></div>` },
+    { clau: "reg", titol: "Registre", html: `<div class="pop-reg-llista" data-clau="estacio:${m.estId}">carregant…</div>` },
+    { clau: "xat", titol: "Xat", html: `<div class="pop-xat" data-tipus="estacio" data-lloc="${m.estId}" data-nom="${m.estNom}"></div>` },
+  ], (clau, panell) => {
+    if (clau === "reg") omplirRegistre(panell.querySelector(".pop-reg-llista"));
+    if (clau === "xat") ompleXat(panell);
+    if (obert) mantinVisible(cont);    // canvia l'alçada: que no quede fora de la pantalla
+  }));
+  const popup = L.popup({ maxWidth: 290, minWidth: 290 }).setLatLng(m.getLatLng()).setContent(cont).openOn(map);
+  obert = { estId: m.estId, cont, popup };
   popupEstacio = obert;
-  popup.on("remove", () => { if (popupEstacio === obert) popupEstacio = null; });
-  if (window.xatOmpliPopup) window.xatOmpliPopup(cont);
+  posaEnllac(slug);
+  seleccionat(m, true);
+  popup.on("remove", () => {
+    if (popupEstacio === obert) popupEstacio = null;
+    seleccionat(m, false);
+    llevaEnllac(slug);
+  });
   await refrescaPopupEstacio(arrivalsCache.ts < (ultimoTs || 0) || serverNow() / 1000 - arrivalsCache.ts > 20);
 }
 
@@ -705,59 +878,42 @@ async function refrescaPopupEstacio(demana = true) {
   if (popupEstacio !== p) return;
   pintarLlegadesPopup(p.cont.querySelector(".pop-arr"), p.estId);
   pintarCancelatsPopup(p.cont.querySelector(".pop-canc"), p.estId);
-  lligaRegistres(p.cont, p.popup);
+  if (pestanyaActiva(p.cont) === "reg") omplirRegistre(p.cont.querySelector(".pop-reg-llista"));
 }
 
 /* ---------- registres del dia (estació i tren) ---------- */
-// Secció desplegable; el contingut es demana en obrir-la i a cada pasada nova
-// mentre està oberta. L'estat obert/tancat va per clau, perquè el popup del
-// tren es reconstrueix a cada refresc.
-function seccioRegistre(clau, titol) {
-  const obert = registreObert.has(clau) ? " open" : "";
-  return `<details class="pop-reg" data-clau="${clau}"${obert}><summary>${titol}</summary>` +
-    `<div class="pop-reg-llista">carregant…</div></details>`;
-}
-
-function lligaRegistres(el, popup) {
-  if (!el) return;
-  el.querySelectorAll("details.pop-reg").forEach((d) => {
-    if (!d.dataset.lligat) {
-      d.dataset.lligat = "1";
-      d.addEventListener("toggle", () => {
-        if (d.open) registreObert.add(d.dataset.clau); else registreObert.delete(d.dataset.clau);
-        if (d.open) omplirRegistre(d, popup); else if (popup) popup.update();
-      });
-    }
-    if (d.open) omplirRegistre(d, popup);
-  });
-}
-
-async function omplirRegistre(d, popup) {
-  const clau = d.dataset.clau;
+// Pestanya «Registre» de l'estació (passos reals) i «Horari» del tren (horari i
+// pas per estació). Es demana en obrir la pestanya i, mentre està oberta, a cada
+// pasada nova; la caché és per pasada.
+async function omplirRegistre(llista) {
+  if (!llista) return;
+  const clau = llista.dataset.clau;
   const [tipus, id] = clau.split(":");
   let c = registreCache.get(clau);
   if (!c || c.ts < (ultimoTs || 0)) {
     try {
       const param = tipus === "tren" ? "id" : "estacio";
-      const j = await (await fetch(`${API}api/registre_${tipus}?${param}=${id}&_=${Date.now()}`,
-        { cache: "no-store" })).json();
+      const r = await fetch(`${API}api/registre_${tipus}?${param}=${id}&_=${Date.now()}`, { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const j = await r.json();
       c = { ts: j.ts || ultimoTs || 0, files: j.files || [] };
       registreCache.set(clau, c);
     } catch (e) {
-      if (!c) { d.querySelector(".pop-reg-llista").textContent = "sense connexió"; return; }
+      if (!c) { if (llista.isConnected) llista.innerHTML = "<div class='pop-buida'>no s'ha pogut carregar</div>"; return; }
     }
   }
-  if (!d.isConnected) return;
-  const llista = d.querySelector(".pop-reg-llista");
-  const scroll = llista.dataset.pintat ? llista.scrollTop : null;
+  if (!llista.isConnected) return;
+  const primera = !llista.dataset.pintat;
+  const scroll = primera ? null : llista.parentElement.scrollTop;
   llista.innerHTML = tipus === "tren" ? htmlRegistreTren(c.files) : htmlRegistreEstacio(c.files);
   llista.dataset.pintat = "1";
-  if (popup) popup.update();
-  if (scroll != null) llista.scrollTop = scroll;
-  else if (tipus === "tren") {           // primera vegada: a la frontera passat/previst
+  const caixa = llista.parentElement;            // el panell de la pestanya és qui fa scroll
+  if (scroll != null) caixa.scrollTop = scroll;
+  else if (tipus === "tren") {                   // primera vegada: a la frontera passat/previst
     const prev = llista.querySelector(".reg-row.previst");
-    if (prev) llista.scrollTop = Math.max(0, prev.offsetTop - llista.offsetTop - 70);
+    if (prev) caixa.scrollTop = Math.max(0, prev.offsetTop - caixa.offsetTop - 70);
   }
+  if (primera) mantinVisible(llista);
 }
 
 function chipLinia(l) {
@@ -918,6 +1074,28 @@ async function vigilaServidor() {
   } catch (e) { /* sense xarxa: el refresc de seguretat ja ho dirà */ }
 }
 
+// metro.pr1.es/burjassot o /1234: obri l'estació o el tren; un tren que ja no
+// circula mostra el seu recorregut (historia.js)
+function obrirEnllac(x) {
+  if (!x || !/^[a-z0-9]+$/.test(x)) return;
+  if (/^\d+$/.test(x)) {
+    const id = Number(x);
+    const e = [...marcadores.values()].find((e) => e.tren.id === id);
+    if (e) {
+      map.setView(e.marker.getLatLng(), Math.max(map.getZoom(), 15), { animate: false });
+      e.marker.openPopup();
+    } else if (window.historiaTren) window.historiaTren(id);
+    return;
+  }
+  for (const m of marcadorsEstacio.values()) {
+    if (slugEstacio(m.estNom) !== x) continue;
+    map.setView(m.getLatLng(), Math.max(map.getZoom(), 15), { animate: false });
+    obrirPopupEstacio(m);
+    return;
+  }
+}
+window.obrirEnllac = obrirEnllac;
+
 // per al xat (xat.js): trens vius amb la seua posició en pantalla, i marcadors per id
 window.trensVius = () => [...marcadores.values()].map((e) => ({ t: e.tren, ll: e.marker.getLatLng() }));
 window.marcadorTren = (id) => { for (const e of marcadores.values()) if (e.tren.id === id) return e.marker; return null; };
@@ -959,6 +1137,7 @@ function tickSegon() {
     await window.iniciaSimulacio();        // sim.js: reprodueix un matí guardat, sense directe
   } else {
     await refrescar();
+    obrirEnllac(ENLLAC_INICIAL);
     setInterval(refrescar, REFRESH_MS);
     setInterval(vigilaServidor, VIGILA_MS);
     setInterval(animar, ANIM_MS);

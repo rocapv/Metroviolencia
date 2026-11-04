@@ -28,7 +28,10 @@ en ruta y calculadora de rutas con los trenes en vivo que hay que coger.
 
 3. **Poller** (`backend/poller.py`). Cada **120 s** (desde el 30/10/2026; antes 60 s) sondea las 144 estaciones
    con 12 hilos en paralelo (~25 s por pasada, medido el 30/10/2026) y guarda en SQLite
-   (`data/metro.db`): `snapshots`, `arrivals` (llegadas crudas), `noinfo`
+   (`data/metro.db`, en modo **WAL** desde el 04/11/2026: la web lee sin esperar al
+   poller): `snapshots`, `lectures` (las llegadas crudas de la pasada, **un blob
+   zlib por pasada**, ver `backend/lectures.py`; hasta el 04/11/2026 eran la
+   tabla `arrivals`, una fila por llegada: 990 MB de 1,7 GB), `noinfo`
    (líneas que no dieron ningún dato en la pasada) y `lecturas_fallidas`
    (estación no leída, con su motivo `error:timeout`/`error:http503`/`error:conexion`…, o cabecera con panel vacío `vacia`). Una vez por hora lanza en
    segundo plano la descarga del horario de hoy y mañana y, una vez al día,
@@ -105,10 +108,22 @@ en ruta y calculadora de rutas con los trenes en vivo que hay que coger.
 | `GET /api/network` | – | Geometría estática: estaciones, líneas comerciales con `path`/`cum`, colores, cierres vigentes, subterráneos, estaciones de retorno, trazados de tranvía |
 | `GET /api/trains` | – | Trenes de la última pasada: `id` (track), línea, destino, posición, `prox_estacion`, `eta_seg`, `origen`, `waypoints`, `retraso`; más `ts`, `edad_seg`, `srv_ms`, `noinfo` |
 | `GET /api/arrivals` | – | Llegadas crudas del último snapshot agrupadas por estación |
+| `GET /api/registre_estacio` | `estacio` | Pasos reales de hoy por la estación frente a su hora programada |
+| `GET /api/registre_tren` | `id` | Paso por estación de un tren hoy: horario frente a paso real (`previst` = aún por delante) |
+| `GET /api/historia_tren` | `id` | Recorrido de un tren aunque ya no circule: posición en cada pasada (`punts`), pasos por estación y cómo acabó (`estat`: `viu`, `arribat`, `perdut` = desaparece a mitad de trayecto) |
+| `GET /api/simulacio` | `dia`, `fins` (HH:MM) | Todas las pasadas de una mañana desde la apertura, para reproducirlas (`?sim=AAAA-MM-DD` en la web) |
 | `GET /api/ruta` | `origen`, `destino` (ids) | `dia`, `ventana` (`2h`/`hoy`/`manana`) y alternativas con pasos, líneas, trenes en vivo (`eta_subida`, `desfase_s`, `hora_prog`), `proxima_prog`, `sin_tren` |
 | `GET /api/retards_ruta` | `dia` (YYYY-MM-DD, hoy por defecto) | Retrasos en ruta: resumen por línea de la última hora y del día (`n`, `mediana_s`, `tarde`) y `tarde_recientes` (pasos a >=3 min en los últimos 45 min) |
 | `GET /api/registro` | `dia` | Salidas programadas vs reales de las cabeceras: `tipo_dia`, `resumen` por estado y retraso mediano/medio, y una fila por salida |
 | `GET /api/health` | – | `snapshots` acumulados y `ultimo_ts` |
+
+**Enlaces directos** (la misma página; la web lee el camino y la barra de
+direcciones sigue al popup abierto): `metro.pr1.es/burjassot` abre la estación
+(nombre en minúsculas, sin acentos ni símbolos: `angelguimera`,
+`seminariceu`); `metro.pr1.es/1234` abre el tren por su id o, si ya no
+circula, su recorrido con el retraso que llevaba y una marca roja donde
+desapareció. Un nombre que no es ninguna estación vuelve al inicio; una página
+propia con ese nombre (`/registre` → `registre.html`) manda sobre los enlaces.
 
 Acceso: dentro de la red local (RFC 1918 / loopback) no hace falta token.
 Desde fuera el middleware exige un token (`data/token.txt` o `METRO_TOKEN`)
@@ -137,7 +152,7 @@ Una sola pasada: `python -m backend.poller --once`. Horario a mano:
 `python -m backend.pasos --horario --dia YYYY-MM-DD` (paso por estación).
 Resúmenes: `python -m backend.salidas --dia` y `python -m backend.pasos --dia`.
 Ambos admiten `--reprocesar YYYY-MM-DD` para rehacer el seguimiento desde
-`arrivals` (con el poller parado).
+`lectures` (los últimos 7 días; con el poller parado).
 
 Tests (offline, ~8 s; pasarlos antes de desplegar):
 
@@ -225,11 +240,16 @@ que nadie la sigue pidiendo en `/var/log/apache2/home.pr1.es-access.log`,
 Una vez, con ambos servicios parados: `python -m backend.purga --vacuum`
 activa `auto_vacuum=INCREMENTAL` y compacta la base (el temporal del VACUUM
 va a `data/tmp/`, no a `/tmp`, que es RAM). Desde entonces el poller purga a
-diario: `arrivals` se conserva 14 días, `trenes` 3 y `pasos_obs` 30 (antes de
+diario. **Desde el 04/11/2026 todo lo bruto se queda en 7 días**: `lectures`,
+`trenes` (mapa, simulación y recorrido de un tren), `pasos_obs` (antes de
 borrar un día se guarda su resumen de retrasos por línea y por parada en
 `retards_dia` / `retards_estacio`, que es lo que `/api/retards_ruta` sirve
-para esos días, con `resumido: true`); `snapshots`, horarios, `salidas_obs`,
-`lecturas_fallidas` y `noinfo` se guardan siempre. Al pasar a horario por
+para esos días, con `resumido: true`), `lecturas_fallidas`, `noinfo` y
+`data/archivo/*.csv.gz` (estos dos, nunca de un día aún sin resumir).
+`snapshots`, horarios, `salidas_obs` y los resúmenes se guardan siempre.
+Migración del 04/11/2026 (con el poller parado): `python -m backend.lectures
+--migra` pasa los últimos 7 días de `arrivals` a `lectures`, comprueba que
+cuadran y borra la tabla vieja; luego `VACUUM` y `PRAGMA journal_mode=WAL`. Al pasar a horario por
 tipo de día en una base anterior: `python -m backend.pasos --dedupe` (con el
 poller en marcha vale).
 
@@ -251,7 +271,7 @@ poller en marcha vale).
   metrovalencia.es no envía → `data/ca-bundle.pem`.
 - `python -m backend.backfill [--fase A|B|C|D|todo] [--desde 2026-07-08]`:
   relleno del registro hacia atrás con el histórico (`data/archivo/*.csv.gz`
-  y lo que quede en `arrivals`). Fases reanudables: A reproduce las pasadas
+  y lo que quede en `lectures`). Fases reanudables: A reproduce las pasadas
   en una base temporal (`data/tmp/backfill.db`), B descarga el horario de
   cabecera de cada fecha con los destinos que circulaban esa semana, C el
   horario de paso (un día por tipo de calendario, reutilizado si el horario

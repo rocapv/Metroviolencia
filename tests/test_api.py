@@ -413,3 +413,37 @@ def test_registres_del_dia(cliente, monkeypatch):
     assert r.status_code == 200 and isinstance(r.json()["files"], list)
     assert cliente.get("/api/registre_tren?id=x", headers=LAN).status_code == 422
     assert cliente.get("/api/registre_tren?id=1", headers=FUERA).status_code == 403
+
+
+# ------------------------------------------------- enllaços i recorregut d'un tren
+
+def test_enllacos_a_estacio_i_tren(cliente):
+    r = cliente.get("/burjassot", headers=LAN)
+    assert r.status_code == 200 and "<html" in r.text.lower()
+    assert cliente.get("/1234", headers=LAN).status_code == 200
+    r = cliente.get("/noesunaestacio", headers=LAN, follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"] == "./"
+    r = cliente.get("/burjassot/", headers=LAN, follow_redirects=False)
+    assert r.status_code == 301 and r.headers["location"] == "../burjassot"
+    assert cliente.get("/", headers=LAN).status_code == 200
+    # els fitxers estàtics continuen servint-se (tenen punt: no són enllaços)
+    assert cliente.get("/app.js", headers=LAN).status_code == 200
+    # i una pàgina pròpia sense extensió (registre.html -> /registre) mana sobre els enllaços
+    r = cliente.get("/registre", headers=LAN)
+    assert r.status_code == 200 and "registre" in r.text.lower()
+    assert cliente.get("/burjassot", headers=FUERA).status_code == 403
+
+
+def test_historia_tren(cliente, extracto):
+    ids = [t["track_id"] for t in extracto["trenes"]]
+    ult = max(t["snapshot_id"] for t in extracto["trenes"])
+    vius = {t["track_id"] for t in extracto["trenes"] if t["snapshot_id"] == ult}
+    morts = [i for i in dict.fromkeys(ids) if i not in vius]
+    r = cliente.get(f"/api/historia_tren?id={next(iter(vius))}", headers=LAN).json()
+    assert r["estat"] == "viu" and r["punts"]
+    j = cliente.get(f"/api/historia_tren?id={morts[0]}", headers=LAN).json()
+    assert j["estat"] in ("arribat", "perdut")
+    tss = [p["ts"] for p in j["punts"]]
+    assert tss == sorted(tss) and isinstance(j["estacions"], list)
+    assert {p["previst"] for p in j["punts"] if "previst" in p} <= {True}
+    assert cliente.get("/api/historia_tren?id=999999999", headers=LAN).status_code == 404

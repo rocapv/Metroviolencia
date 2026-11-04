@@ -184,7 +184,7 @@
       `<button class="pop-xat-btn">${tipus === "tren" ? "Escriu des d'este tren" : "Escriu des d'ací"}</button>`;
     el.querySelector(".pop-xat-btn").onclick = () => { map.closePopup(); window.xatDesDe(tipus, id, nom); };
     try {
-      const j = await (await fetch(`api/xat?tipus=${tipus}&lloc=${id}&n=5&_=${Date.now()}`, { cache: "no-store" })).json();
+      const j = await (await fetch(`api/xat?tipus=${tipus}&lloc=${id}&n=20&_=${Date.now()}`, { cache: "no-store" })).json();
       const ms = j.missatges || [];
       el.querySelector(".pop-xat-llista").innerHTML = ms.length
         ? ms.map((m) => htmlMissatge(m, false)).join("")

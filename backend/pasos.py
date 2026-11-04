@@ -290,10 +290,9 @@ def reprocesar(con: sqlite3.Connection, desde: int, net) -> int:
     snaps = con.execute("SELECT id, ts FROM snapshots WHERE ts>=? ORDER BY id",
                         (desde,)).fetchall()
     for snap_id, ts in snaps:
+        from . import lectures
         por: dict[int, list] = {}
-        for est, lin, dest, eta in con.execute(
-                "SELECT estacion_id,linea,destino,eta_seg FROM arrivals WHERE snapshot_id=?",
-                (snap_id,)):
+        for est, lin, dest, eta, *_ in lectures.de_pasada(con, snap_id):
             por.setdefault(est, []).append((lin, dest, eta))
         actualizar(con, ts, por, net)
     return len(snaps)

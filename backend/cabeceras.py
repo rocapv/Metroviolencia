@@ -44,12 +44,14 @@ MIN_VISTAS = 5      # apariciones mínimas para contar un destino (quita ruido)
 
 def destinos_de(con: sqlite3.Connection, cab: dict) -> list[tuple[str, int, int]]:
     """[(destino, linea, veces_visto)] que salen de la cabecera según el tiempo real reciente."""
-    desde = int(time.time()) - DIAS_HISTORIA * 86400
+    import datetime as dt
+    desde = (dt.date.fromtimestamp(time.time() - DIAS_HISTORIA * 86400)).isoformat()
     marcas = ",".join("?" * len(cab["lineas"]))
+    # recompte que va sumant el poller a cada pasada (lectures.guarda)
     rows = con.execute(
-        f"SELECT destino, linea, COUNT(*) FROM arrivals "
-        f"WHERE estacion_id=? AND ts>=? AND linea IN ({marcas}) AND destino<>'' "
-        f"AND destino<>? GROUP BY destino, linea HAVING COUNT(*)>=?",
+        f"SELECT destino, linea, SUM(n) FROM destins_capcalera "
+        f"WHERE estacion_id=? AND dia>=? AND linea IN ({marcas}) AND destino<>'' "
+        f"AND destino<>? GROUP BY destino, linea HAVING SUM(n)>=?",
         (cab["id"], desde, *cab["lineas"], cab["nombre"], MIN_VISTAS),
     ).fetchall()
     return [(d, l, n) for d, l, n in rows]

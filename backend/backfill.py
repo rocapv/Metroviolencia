@@ -61,7 +61,7 @@ def _semana(ts: int) -> str:
 
 def _fuente(main: sqlite3.Connection):
     """Genera (snapshot_id, [(estacion, linea, destino, eta)]) en orden, del
-    archivo CSV y luego de `arrivals`."""
+    archivo CSV y luego de `lectures`."""
     ult = 0
     for f in sorted(glob.glob(str(ARCHIVO / "arrivals_*.csv.gz"))):
         with gzip.open(f, "rt", newline="") as fh:
@@ -78,17 +78,9 @@ def _fuente(main: sqlite3.Connection):
             if actual is not None:
                 yield actual, filas
                 ult = actual
-    actual, filas = None, []
-    for sid, est, lin, dest, eta in main.execute(
-            "SELECT snapshot_id, estacion_id, linea, destino, eta_seg FROM arrivals "
-            "WHERE snapshot_id>? ORDER BY snapshot_id", (ult,)):
-        if sid != actual:
-            if actual is not None:
-                yield actual, filas
-            actual, filas = sid, []
-        filas.append((est, lin, dest, eta))
-    if actual is not None:
-        yield actual, filas
+    from . import lectures
+    for sid, _ts, files in lectures.pasades(main, desde_snap=ult):
+        yield sid, [f[:4] for f in files]
 
 
 def fase_a(main, tmp, net, desde_ts: int, hasta_ts: int, log=print) -> None:

@@ -75,7 +75,9 @@ def _esquema_completo(con: sqlite3.Connection) -> None:
     """Todas las tablas del poller (snapshots/arrivals/trenes/noinfo/lecturas)
     más las de horarios, salidas y pasos, como hace poller.init_db()."""
     from backend import poller
+    from backend import lectures
     con.executescript(poller.SCHEMA)
+    lectures.init_db(con)
     horarios.init_db(con)
     salidas.init_db(con)
     pasos.init_db(con)
@@ -100,11 +102,13 @@ def bd_real(bd: BD, extracto: dict, monkeypatch) -> BD:
     con = bd.con
     con.executemany("INSERT INTO snapshots(id, ts) VALUES (?,?)",
                     [(s["id"], s["ts"]) for s in extracto["snapshots"]])
-    con.executemany(
-        "INSERT INTO arrivals(snapshot_id,ts,estacion_id,linea,destino,eta_seg,eta_txt)"
-        " VALUES (?,?,?,?,?,?,?)",
-        [(a["snapshot_id"], a["ts"], a["estacion_id"], a["linea"], a["destino"],
-          a["eta_seg"], a["eta_txt"]) for a in extracto["arrivals"]])
+    from backend import lectures
+    per_pasada: dict[int, list] = {}
+    for a in extracto["arrivals"]:
+        per_pasada.setdefault((a["snapshot_id"], a["ts"]), []).append(
+            (a["estacion_id"], a["linea"], a["destino"], a["eta_seg"], a["eta_txt"], None))
+    for (sid, ts), files in per_pasada.items():
+        lectures.guarda(con, sid, ts, files)
     con.executemany(
         "INSERT INTO trenes(snapshot_id,ts,track_id,linea,destino,color,lat,lng,"
         "prox_estacion,eta_seg,origen,d,waypoints) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",

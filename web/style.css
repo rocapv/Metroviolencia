@@ -423,3 +423,100 @@ body.mode-desti #map { cursor: crosshair; }
 #sim-pos { width: 220px; max-width: 40vw; accent-color: var(--viol); }
 #sim-dia { color: var(--muted); }
 #sim-ix { color: var(--muted); }
+
+/* ---------- popups amb pestanyes (estació: Arribades/Registre/Xat; tren: Ara/Horari/Xat) ---------- */
+.pop-cap { display: flex; align-items: center; gap: 4px; padding-right: 16px; }   /* lloc per a la × de Leaflet */
+.pop-nom {
+  all: unset; cursor: pointer; color: var(--txt); border-radius: 4px;
+  text-decoration: underline transparent 2px; text-underline-offset: 3px; transition: text-decoration-color 0.15s;
+}
+.pop-nom:hover { text-decoration-color: var(--viol); }
+.pop-nom:focus-visible, .pop-share:focus-visible, .pop-tab:focus-visible, .hist-tanca:focus-visible {
+  outline: 2px solid var(--viol); outline-offset: 2px;
+}
+.pop-nom.pop-est-nom { font-size: 17px; font-weight: 800; line-height: 1.15; }
+.pop-nom.pop-tren-nom { font-size: 14px; font-weight: 700; }
+.pop-tren-nom .pop-linea { margin-right: 4px; }
+.pop-id { color: #6a6a7a; font-weight: 400; font-size: 12px; }
+.pop-share {
+  all: unset; cursor: pointer; display: inline-flex; padding: 4px; border-radius: 6px;
+  color: var(--muted); flex: none;
+}
+.pop-share:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.pop-tab-barra { display: flex; margin: 8px 0 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.pop-tab {
+  all: unset; cursor: pointer; padding: 6px 10px 5px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.5px; text-transform: uppercase; color: #8a8a98;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.pop-tab:hover { color: var(--txt); }
+.pop-tab.on { color: #fff; border-bottom-color: var(--viol); }
+.pop-tab-panell { max-height: 240px; overflow-y: auto; overscroll-behavior: contain; }
+.pop-tab-panell .pop-reg-llista { max-height: none; margin-top: 0; }
+.pop-tab-panell .reg-row.reg-cap { background: #16161f; z-index: 1; }   /* capçalera fixa opaca */
+.pop-tab-panell .pop-xat { margin-top: 0; }
+.pop-tab-panell .pop-xat > .pop-arr-tit { display: none; }               /* ja ho diu la pestanya */
+.pop-tren-ara { padding-top: 2px; }
+
+/* avís curt (enllaç copiat) */
+#avis-curt {
+  position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px); z-index: 1300;
+  max-width: calc(100vw - 32px); background: var(--panel); color: var(--txt);
+  border-left: 3px solid var(--viol); border-radius: 8px; padding: 8px 12px; font-size: 13px;
+  backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
+  overflow-wrap: anywhere;
+}
+#avis-curt.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- recorregut d'un tren que ja no circula (historia.js) ---------- */
+body.mode-historia .leaflet-marker-pane .leaflet-marker-icon:not(.hist-icona) { opacity: 0.22; }
+#hist-panell {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1190;
+  width: min(440px, calc(100vw - 32px)); background: var(--panel); color: var(--txt);
+  border: 1px solid var(--viol); border-radius: 10px; padding: 8px 10px; font-size: 13px;
+  backdrop-filter: blur(6px);
+}
+.hist-cap { display: flex; align-items: center; gap: 4px; }
+.hist-cap .pop-cap { flex: 1; min-width: 0; padding-right: 0; }
+.hist-tanca {
+  all: unset; cursor: pointer; font-size: 20px; line-height: 1; padding: 2px 6px; color: var(--muted);
+  border-radius: 6px;
+}
+.hist-tanca:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.hist-sub { margin: 4px 0 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.hist-estat { font-weight: 700; }
+.hist-estat.perdut { color: #f87171; }
+.hist-estat.arribat { color: #4ade80; }
+.hist-estat.viu { color: #38bdf8; }
+.hist-mut { color: var(--muted); }
+.hist-ctrl { display: flex; align-items: center; gap: 8px; }
+.hist-ctrl button, .hist-ctrl select {
+  font: inherit; color: #fff; background: #2a2a36; border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 6px; padding: 2px 8px; cursor: pointer;
+}
+#hist-hora { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 64px; }
+#hist-pos { flex: 1; min-width: 0; accent-color: var(--viol); }
+.hist-ret { margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+.hist-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.hist-llista { margin-top: 6px; }
+.hist-llista summary {
+  cursor: pointer; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: #8a8a98; font-weight: 700; padding: 3px 0;
+}
+.hist-llista .pop-reg-llista { max-height: 200px; }
+.hist-llista .reg-row.reg-cap { background: #16161f; }
+.reg-row.no-arriba { color: #f87171; opacity: 0.85; }
+.reg-row.no-arriba .reg-nom { text-decoration: line-through; }
+.hist-fi {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 900; font-size: 15px; color: #fff; border: 2px solid #fff;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.35);
+}
+.hist-fi.perdut { background: #dc2626; box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.35); }
+.hist-fi.arribat { background: #16a34a; }
+.hist-fi.viu { background: #0284c7; }
+.leaflet-tooltip.hist-tt { background: #16161f; color: var(--txt); border: 1px solid #dc2626; }
+@media (max-width: 600px) {
+  #hist-panell { top: auto; bottom: 12px; left: 16px; right: 16px; transform: none; width: auto; }
+  .hist-llista .pop-reg-llista { max-height: 140px; }
+}

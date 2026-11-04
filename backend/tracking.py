@@ -238,3 +238,80 @@ def llega_a_destino(net, linea: int, via: int, destino: str, waypoints: list) ->
         return False
     d_dest = next((d for d, s in lc.orden if s == sid), None)
     return d_dest is not None and abs(d_dest - waypoints[0]["d"]) <= ACABA_M
+
+
+# ------------------------------------------------------------ rescat a mitja línia
+# 04/11/2026: amb la tolerància nova encara morien trens a mitjan trajecte (un
+# salt de l'estimador, una lectura fallida d'una estació) i tornaven en la
+# pasada següent amb un número nou: 1.388 ids en 12 h per a ~100 trens, i el
+# recorregut d'un tren «perdut» semblava una cancel·lació que no ho era.
+# Reproduït sobre 12 h: dels que «acabaven perduts», 127 seguien a prop amb un
+# ALTRE destí rotulat (FGV canvia el cartell a mitjan recorregut: un L1 «València
+# Sud» passa a «Castelló») i 51 tornaven al cap de més de 7 min.
+RESCAT_S = 900        # s: un tren perdut fa menys d'açò encara es pot retrobar (~7 pasades)
+RESCAT_ENRERE = 500   # m que pot aparéixer per darrere d'on es va perdre (soroll)
+RESCAT_AVANT = 2500   # m que pot aparéixer més enllà d'on havia d'estar ara
+RESCAT_ALTRE = 1500   # m al voltant d'on havia d'estar si ara porta un altre destí
+
+
+def d_previst(waypoints: list, tau: float) -> float:
+    """Posició sobre la via `tau` segons després de la pasada dels waypoints."""
+    wp = waypoints
+    if tau <= wp[0]["eta"]:
+        return wp[0]["d"]
+    for a, b in zip(wp, wp[1:]):
+        if tau <= b["eta"]:
+            dt = b["eta"] - a["eta"]
+            f = 1.0 if dt <= 0 else (tau - a["eta"]) / dt
+            return a["d"] + f * (b["d"] - a["d"])
+    return wp[-1]["d"]
+
+
+def _vies_compatibles(via_a: int, via_b: int, d_a: float, d_b: float, vias: dict) -> bool:
+    if via_a == via_b:
+        return True
+    du = max(vias.get(via_a, (0, 0.0))[1], vias.get(via_b, (0, 0.0))[1])
+    return min(d_a, d_b) >= du          # els dos al tronc comú
+
+
+def rescats(perduts: list, nous: list, ara: int, vias: dict | None = None) -> dict:
+    """Un tren que deixa de veure's LLUNY del seu destí no s'ha esfumat: si en
+    esta pasada apareix un tren NOU de la mateixa línia, destí i via prop d'on
+    havia d'estar, és ell i conserva el número.
+
+    perduts: [{track_id, linea, destino, via, ts, waypoints}] — perduts fa
+             menys de RESCAT_S, a mitjan trajecte (no a la capçalera).
+    nous:    [{track_id, linea, destino, via, d, dir}] — ids estrenats en esta
+             pasada que no estan en capçalera (dir = sentit sobre la via, ±1).
+    Amb un altre destí rotulat només val si va en el mateix sentit i a menys
+    de RESCAT_ALTRE d'on havia d'estar. Primer els del mateix destí; dins de
+    cada grup, el més pròxim a la posició prevista; un a un.
+    Devuelve {nou: perdut}."""
+    vias = vias or {}
+    parelles = []
+    for p in perduts:
+        wps = p.get("waypoints") or []
+        if not wps:
+            continue
+        d0 = wps[0]["d"]
+        dir_ = 1 if wps[-1]["d"] >= d0 else -1
+        s_pred = (d_previst(wps, ara - p["ts"]) - d0) * dir_
+        for c in nous:
+            if c["linea"] != p["linea"]:
+                continue
+            if not _vies_compatibles(p["via"], c["via"], d0, c["d"], vias):
+                continue
+            s = (c["d"] - d0) * dir_
+            if c["destino"] == p["destino"]:
+                if -RESCAT_ENRERE <= s <= s_pred + RESCAT_AVANT:
+                    parelles.append((0, abs(s - s_pred), c["track_id"], p["track_id"]))
+            elif c.get("dir") == dir_ and abs(s - s_pred) <= RESCAT_ALTRE:
+                parelles.append((1, abs(s - s_pred), c["track_id"], p["track_id"]))
+    out, nous_usats, perduts_usats = {}, set(), set()
+    for _, _, n, p in sorted(parelles):
+        if n in nous_usats or p in perduts_usats:
+            continue
+        out[n] = p
+        nous_usats.add(n)
+        perduts_usats.add(p)
+    return out
