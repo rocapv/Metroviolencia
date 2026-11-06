@@ -416,7 +416,11 @@ def _calcula_incoherentes(net, dia: str) -> None:
         filas = _crudos(c, net, ayer)
         res = pares_incoherentes(filas, extremos=_extremos(net, filas))
         c.close()
-        _incoh_cache.clear()
+        # 3 dies (hui, ahir i el d'un recorregut que s'estiga mirant). Amb un de
+        # sol, obrir el recorregut d'un tren d'altre dia desallotjava el de hui:
+        # el directe es quedava sense filtre i es recalculava (~20 s) sense parar.
+        while len(_incoh_cache) >= 3:
+            _incoh_cache.pop(next(iter(_incoh_cache)))
         _incoh_cache[dia] = res
     finally:
         with _incoh_lock:
@@ -445,11 +449,18 @@ def _crudos(con, net, dia: str) -> list[dict]:
         v = _vecina(net, linea, sid, destino, sent.get((linea, destino)))
         if v is not None and (sid, v) in prog:
             grupos.setdefault((sid, v), []).append((tpaso, linea, destino))
+    import bisect
     out = []
     for (sid, v), obs in grupos.items():
         slots = sorted(prog[(sid, v)])
-        pares_ = sorted((abs(o[0] - p), i, j) for i, o in enumerate(obs)
-                        for j, p in enumerate(slots) if abs(o[0] - p) <= VENTANA)
+        # parelles a menys de VENTANA (amb bisect: abans era tots contra tots,
+        # 3,5 milions de comparacions per dia i 7 s a la Raspa; mateix resultat)
+        pares_ = []
+        for i, o in enumerate(obs):
+            lo = bisect.bisect_left(slots, o[0] - VENTANA)
+            hi = bisect.bisect_right(slots, o[0] + VENTANA)
+            pares_ += [(abs(o[0] - slots[j]), i, j) for j in range(lo, hi)]
+        pares_.sort()
         usados_o, usados_s = set(), set()
         for _d, i, j in pares_:
             if i in usados_o or j in usados_s:
@@ -457,8 +468,11 @@ def _crudos(con, net, dia: str) -> list[dict]:
             usados_o.add(i); usados_s.add(j)
             tpaso, linea, destino = obs[i]
             d = tpaso - slots[j]
-            # ambiguo: otra hora programada casi igual de cerca (troncos compartidos)
-            otra = min((abs(tpaso - p) for k, p in enumerate(slots) if k != j), default=1e9)
+            # ambiguo: otra hora programada casi igual de cerca (troncos compartidos).
+            # La més pròxima que no és j està entre les dues de cada costat de tpaso.
+            k0 = bisect.bisect_left(slots, tpaso)
+            otra = min((abs(tpaso - slots[k]) for k in range(max(0, k0 - 2), min(len(slots), k0 + 2))
+                        if k != j), default=1e9)
             if otra < abs(d) + MARGEN_AMBIG:
                 continue
             out.append({"estacion_id": sid, "hacia_id": v,

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import functools
 import re
 import sqlite3
 import time
@@ -103,7 +104,10 @@ def consultar(session, headers, verify, token, origen: int, destino: int,
     return parse_horas(r.json().get("html") or "")
 
 
+@functools.lru_cache(maxsize=32768)
 def _ts(dia: str, hhmm: str) -> int:
+    """(Memoritzat: un dia té ~1.300 hores distintes però el registre en
+    demanava 27.000 cada vegada; strptime era 2 s a la Raspa.)"""
     d = dt.datetime.strptime(f"{dia} {hhmm}", "%Y-%m-%d %H:%M")
     return int(time.mktime(d.timetuple()))
 
