@@ -13,8 +13,9 @@ veredicte, i només és «cancel·lat» quan ho diuen les dades:
     cancellat    a les estacions per davant NO hi va passar i el seu horari hi té
                  un tren que falta (pasos.cancelados_estacion: hora programada
                  sense pas i amb dèficit de trens confirmat).
-    retirat      per davant ja no hi havia cap tren programat en eixe sentit
-                 (fi de servei o tren que es retira a cotxeres).
+    retirat      ningú no el va veure per davant i l'horari d'eixes parades (que
+                 en tenen eixe dia) ja no hi portava cap tren a eixa hora (fi de
+                 servei o tren que es retira a cotxeres).
     sense_dades  el poller no va llegir res durant una estona just després
                  (HUECO_DADES): no se sap què va passar.
     pendent      encara no ha passat prou temps per a confirmar una cancel·lació
@@ -130,22 +131,29 @@ def _seguit_per(con, net, ctx: Context, track_id: int, snap_fi: int, ts_fi: int,
 
 def decideix(estacions: list[dict]) -> str:
     """Veredicte a partir del que es va veure a les estacions per davant
-    ({pas, cancel_prog, horari, sense_dades?}; veure `calcula`)."""
+    ({pas, cancel_prog, horari, horari_dia?, sense_dades?}; veure `calcula`).
+
+    Ordre (06/11/2026): primer si el van veure passar. Abans «retirat» anava
+    davant i un tramvia de la L4 que Dr. Lluch i Cabanyal van veure passar a
+    l'hora eixia retirat perquè eixes parades no tenen horari descarregat (36
+    dels 58 retirats de 3 dies eren de la L4)."""
     llegides = [e for e in estacions if not e.get("sense_dades")]
     k = len(llegides)
     vist = sum(e["pas"] is not None for e in llegides)
     canc = sum(e["cancel_prog"] is not None for e in llegides)
     if not llegides:
         return "sense_dades"
-    if not any(e["horari"] for e in llegides):
-        return "retirat"
+    if vist >= k / 2:
+        return "continua"
     if canc and not vist:
         # ni una sola estació llegida el va veure passar. Amb «menys de la
         # meitat» eixia cancel·lat un L2 (03/11 09:40) que Fuente del Jarro i El
         # Clot van veure passar a l'hora: l'hora que faltava era d'un altre tren
         return "cancellat"
-    if vist >= k / 2:
-        return "continua"
+    # retirat: ningú no el va veure i l'horari de la parada (que en té, eixe
+    # dia) ja no hi porta cap tren a eixa hora (fi de servei / cotxeres)
+    if not vist and all(e.get("horari_dia", True) and not e["horari"] for e in llegides):
+        return "retirat"
     return "indeterminat"
 
 
@@ -208,12 +216,13 @@ def calcula(con, net, track_id: int, ctx: Context | None = None,
         v = pasos._vecina(net, linea, sid, destino, ctx.sent.get((linea, destino)))
         slots = ctx.prog.get((sid, v), []) if v is not None else []
         amb_horari = any(tk - 1800 <= p <= tk + 1800 for p in slots)
+        horari_dia = bool(slots)          # la parada té horari eixe dia (la L4 sovint no)
         canc = next((c for c in ctx.cancelats(sid)
                      if c["hacia_id"] == v and abs(c["ts_prog"] - tk) <= CANC_FINESTRA), None)
         estacions.append({"estacio": net.estaciones[sid].nombre, "previst": _hhmm(tk),
                           "pas": _hhmm(pas[0]) if pas else None,
                           "cancel_prog": canc["hora"] if canc else None,
-                          "horari": amb_horari})
+                          "horari": amb_horari, "horari_dia": horari_dia})
     v_ = decideix(estacions)
     res = dict(base, veredicte=v_, estacions=estacions)
     if v_ == "continua" and wps:
