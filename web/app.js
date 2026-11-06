@@ -381,9 +381,59 @@ function dibuixarCierres(cierres, porNom) {
 }
 
 let chipsPorLinea = {};
+let totesLinies = [];
+let liniaSola = null;              // línia triada amb «Només» (null = sense filtre d'una línia)
+
+// mostra/amaga una línia: via, trens i el seu xip de la llegenda
+function posaLiniaVisible(l, vis) {
+  const capes = lineLayers[l] || [];
+  if (vis) { lineasVisibles.add(l); capes.forEach((x) => x.addTo(map)); }
+  else { lineasVisibles.delete(l); capes.forEach((x) => map.removeLayer(x)); }
+  if (chipsPorLinea[l]) chipsPorLinea[l].classList.toggle("off", !vis);
+}
+
+// les estacions que no són de cap línia visible queden esvaïdes (no amagades: es poden tocar igual)
+function pintaEstacionsVisibles() {
+  for (const m of marcadorsEstacio.values()) {
+    const vis = (m.estLineas || []).some((l) => lineasVisibles.has(l));
+    m.setStyle({ opacity: vis ? 1 : 0.15, fillOpacity: vis ? 1 : 0.15 });
+  }
+}
+
+function pintaBotonsNomes() {
+  document.querySelectorAll("#nomes-linia button").forEach((b) => {
+    const l = b.dataset.l === "" ? null : Number(b.dataset.l);
+    b.classList.toggle("on", l === liniaSola);
+  });
+}
+
+/* «Només»: un toc deixa a la vista una sola línia (via, trens i estacions) i enquadra
+   el mapa en ella; tocar-la de nou o «Totes» ho torna tot. És estat d'esta pestanya
+   (sessionStorage): un altre client no l'hereta. */
+function soloLinia(l, enquadra = true) {
+  if (l != null && !totesLinies.includes(l)) l = null;
+  if (l != null && l === liniaSola) l = null;              // segon toc: torna a totes
+  liniaSola = l;
+  for (const x of totesLinies) posaLiniaVisible(x, l == null || x === l);
+  try { sessionStorage.setItem("mv_linia", l == null ? "" : String(l)); } catch (e) {}
+  pintaBotonsNomes();
+  pintaEstacionsVisibles();
+  pintarTrenes(ultimoTrenes);
+  if (l != null && enquadra) {
+    const capes = (lineLayers[l] || []).filter((x) => x.getBounds);
+    if (capes.length) {
+      const b = L.latLngBounds([]);
+      capes.forEach((x) => b.extend(x.getBounds()));
+      if (b.isValid()) map.fitBounds(b, { padding: [40, 40], maxZoom: 15 });
+    }
+  }
+}
+window.soloLinia = soloLinia;
+
 function construirLeyenda(lineas) {
   const ley = document.getElementById("leyenda");
   ley.innerHTML = ""; chipsPorLinea = {};
+  totesLinies = lineas.slice();
   for (const l of lineas) {
     lineasVisibles.add(l);
     const chip = document.createElement("span");
@@ -391,20 +441,47 @@ function construirLeyenda(lineas) {
     chip.textContent = NOMBRES_LINEA[l] || "L" + l;
     chip.style.background = "#" + (colores[l] || "888");
     chip.title = "";
-    chip.onclick = () => {
-      const capes = lineLayers[l] || [];
-      if (lineasVisibles.has(l)) {
-        lineasVisibles.delete(l); chip.classList.add("off");
-        capes.forEach((x) => map.removeLayer(x));          // amaga la via també
-      } else {
-        lineasVisibles.add(l); chip.classList.remove("off");
-        capes.forEach((x) => x.addTo(map));
-      }
+    chip.onclick = () => {                                 // encén/apaga eixa línia
+      liniaSola = null; pintaBotonsNomes();
+      try { sessionStorage.setItem("mv_linia", ""); } catch (e) {}
+      posaLiniaVisible(l, !lineasVisibles.has(l));
+      pintaEstacionsVisibles();
       pintarTrenes(ultimoTrenes);
     };
     chipsPorLinea[l] = chip;
     ley.appendChild(chip);
   }
+
+  // fila «Només»: un botó per línia + «Totes»
+  const nom = document.getElementById("nomes-linia");
+  if (nom) {
+    nom.innerHTML = "";
+    const tit = document.createElement("span");
+    tit.className = "nomes-tit";
+    tit.textContent = "Només:";
+    nom.appendChild(tit);
+    for (const l of [...lineas, null]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.l = l == null ? "" : String(l);
+      if (l == null) {
+        b.textContent = "Totes";
+        b.className = "nomes-totes";
+        b.title = "Mostra totes les línies";
+      } else {
+        b.textContent = NOMBRES_LINEA[l] || "L" + l;
+        b.style.setProperty("--c", "#" + (colores[l] || "888"));
+        b.title = `Mostra només la ${NOMBRES_LINEA[l] || "L" + l}`;
+      }
+      b.onclick = () => soloLinia(l);
+      nom.appendChild(b);
+    }
+  }
+
+  let guardada = "";
+  try { guardada = sessionStorage.getItem("mv_linia") || ""; } catch (e) {}
+  if (guardada) soloLinia(Number(guardada), false);    // F5 en esta pestanya: conserva el filtre
+  else pintaBotonsNomes();
 }
 
 /* ---------- trens: posició sobre la trajectòria (waypoints) ---------- */
