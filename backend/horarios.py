@@ -25,6 +25,8 @@ import time
 
 import requests
 
+from . import fgv_http
+
 from .cabeceras import CABECERAS, destinos_de
 from .calendario import tipo
 
@@ -68,8 +70,8 @@ def init_db(con: sqlite3.Connection) -> None:
 
 
 def _token(session: requests.Session, headers: dict, verify) -> str:
-    r = session.get(PLAN_URL, headers={"User-Agent": headers["User-Agent"]},
-                    timeout=20, verify=verify)
+    r = fgv_http.peticio(session, "GET", PLAN_URL, lectura=20,
+                         headers={"User-Agent": headers["User-Agent"]}, verify=verify)
     m = _TOKEN_RE.search(r.text)
     if not m:
         raise RuntimeError("no encuentro auth_token de horarios-ruta")
@@ -97,9 +99,8 @@ def consultar(session, headers, verify, token, origen: int, destino: int,
               dia: str) -> list[str] | None:
     data = (f"auth_token={token}&action=horarios-ruta&origen={origen}"
             f"&destino={destino}&dia={dia}&horaDesde=00:00&horaHasta=23:59")
-    r = session.post(NOWP_URL, data={"action": "formularios_ajax", "data": data},
-                     headers={**headers, "Referer": PLAN_URL}, timeout=30,
-                     verify=verify)
+    r = fgv_http.peticio(session, "POST", NOWP_URL, data={"action": "formularios_ajax", "data": data},
+                         headers={**headers, "Referer": PLAN_URL}, verify=verify)
     r.raise_for_status()
     return parse_horas(r.json().get("html") or "")
 

@@ -22,7 +22,7 @@ import threading
 import time
 from html import unescape
 
-from . import horarios
+from . import fgv_http, horarios
 
 MARGEN_D = 150       # m de tolerancia al comparar posiciones sobre la vía
 TOKEN_TTL = 1800     # s que se reutiliza el auth_token del planificador
@@ -107,9 +107,9 @@ def _pedir(session, headers, verify, origen, destino, dia, desde, hasta) -> list
         tok = _get_token(session, headers, verify)
         data = (f"auth_token={tok}&action=horarios-ruta&origen={origen}"
                 f"&destino={destino}&dia={dia}&horaDesde={desde}&horaHasta={hasta}")
-        r = session.post(horarios.NOWP_URL, data={"action": "formularios_ajax", "data": data},
-                         headers={**headers, "Referer": horarios.PLAN_URL}, timeout=30,
-                         verify=verify)
+        r = fgv_http.peticio(session, "POST", horarios.NOWP_URL,
+                             data={"action": "formularios_ajax", "data": data},
+                             headers={**headers, "Referer": horarios.PLAN_URL}, verify=verify)
         r.raise_for_status()
         alts = parse_alternativas(r.json().get("html") or "")
         if alts or intento:

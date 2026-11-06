@@ -25,7 +25,7 @@ from pathlib import Path
 
 import requests
 
-from . import finals, horarios, pasos, purga, salidas, xat, lectures
+from . import fgv_http, finals, horarios, pasos, purga, salidas, xat, lectures
 from .cabeceras import CABECERAS
 from .network import load_network
 from .parser import parse_arrivals
@@ -231,8 +231,8 @@ def fetch_station(session: requests.Session, sid: int) -> tuple[str | None, str]
     ('error:timeout', 'error:conexion', 'error:http503', 'error:cuerpo'...)."""
     body = f"action=formularios_ajax&data=action%3Dinfo-estacion%26id%3D{sid}"
     try:
-        r = session.post(AJAX_URL, data=body, headers=HEADERS, timeout=TIMEOUT,
-                         verify=VERIFY)
+        r = fgv_http.peticio(session, "POST", AJAX_URL, lectura=TIMEOUT, data=body,
+                             headers=HEADERS, verify=VERIFY)
     except requests.Timeout:
         return None, "error:timeout"
     except requests.exceptions.SSLError:
