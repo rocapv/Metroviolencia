@@ -178,6 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_fallidas ON lecturas_fallidas(estacion_id, ts);
 # L10 también es tranvía). Desde septiembre los tranvías también dan datos. Si
 # alguna no aparece en una pasada -> se registra NoInfo.
 LINEAS_ESPERADAS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+MIN_SEGUIMENT = 72      # estaciones leídas (de 144) para hacer tracking de la pasada (api.MIN_ESTACIONES)
 
 
 def make_session() -> requests.Session:
@@ -204,6 +205,10 @@ def init_db() -> sqlite3.Connection:
         pass
     try:   # bases anteriores a ts_fin (fin de pasada; el cliente lo usa para sincronizarse)
         con.execute("ALTER TABLE snapshots ADD COLUMN ts_fin INTEGER")
+    except sqlite3.OperationalError:
+        pass
+    try:   # bases anteriores a estaciones_ok (cuántas estaciones se leyeron en la pasada)
+        con.execute("ALTER TABLE snapshots ADD COLUMN estaciones_ok INTEGER")
     except sqlite3.OperationalError:
         pass
     try:   # bases anteriores a `via` (variante de ramal que da la geometría del tren)
@@ -297,20 +302,27 @@ def poll_once(con: sqlite3.Connection, session: requests.Session) -> int:
 
     # TRACKING: estima los trenes físicos de esta pasada y les da identidad
     # persistente (track_id), siguiéndolos desde el snapshot anterior.
-    n_tr = track_snapshot(con, net, snap_id, ts, rows)
+    # Pasada degradada (FGV no contesta a la mitad o más de las estaciones): sin
+    # tracking. El 06/11/2026 de madrugada FGV dejó de responder a ratos (0/144,
+    # 67/144...) y cada pasada así borraba del mapa los trenes de los tramos sin
+    # leer y les daba número nuevo en la siguiente. La API sirve la última buena.
+    if ok >= MIN_SEGUIMENT:
+        n_tr = track_snapshot(con, net, snap_id, ts, rows)
+    else:
+        n_tr = 0
 
     global ULTIMAS_LLEGADAS
     ULTIMAS_LLEGADAS = len(rows)
     # fin de la pasada: desde aquí los trenes de este snapshot están servidos
     ts_fin = int(time.time())
-    con.execute("UPDATE snapshots SET ts_fin=? WHERE id=?", (ts_fin, snap_id))
+    con.execute("UPDATE snapshots SET ts_fin=?, estaciones_ok=? WHERE id=?", (ts_fin, ok, snap_id))
     con.commit()
     faltan = ", ".join(f"L{l}" for _s, _t, l in ni) or "-"
     print(f"[{time.strftime('%H:%M:%S')}] snapshot {snap_id} ({ts_fin - ts} s): "
           f"{ok}/{len(net.estaciones)} estaciones, {len(rows)} llegadas, "
           f"{n_tr} trenes, NoInfo: {faltan}, salidas: {sal['salen']} "
           f"(+{sal['nuevas']} previstas, {sal['desaparecen']} caídas), "
-          f"pasos: {pas['salen']}")
+          f"pasos: {pas['salen']}" + ("" if ok >= MIN_SEGUIMENT else " · DEGRADADA: sin tracking"))
     return snap_id
 
 

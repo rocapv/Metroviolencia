@@ -1071,8 +1071,16 @@ async function refrescar() {
     const edad = data.edad_seg == null ? "—" : data.edad_seg + " s";
     const ni = noinfo.length ? `<br><span style="color:#e8c07a">sense info: ${noinfo.map(l=>"L"+l).join(", ")}</span>` : "";
     const ping = pingMs ? `<br><span style="opacity:.65">ping ${Math.round(pingMs)} ms</span>` : "";
+    // FGV no contesta: el servidor manté l'última pasada bona i ho diu
+    const hm = (ts) => new Date(ts * 1000).toLocaleTimeString("ca-ES", { hour: "2-digit", minute: "2-digit" });
+    const dg = data.degradat;
+    const fgv = dg
+      ? `<br><span style="color:#f87171">FGV no respon (${dg.llegides ?? 0}/${dg.de} estacions a les ${hm(dg.ts)})` +
+        (dg.mostrant ? `<br>trens de les ${hm(dg.mostrant)}` : "") + `</span>`
+      : data.llegides != null && data.llegides < data.de
+        ? `<br><span style="color:#e8c07a">FGV: ${data.llegides}/${data.de} estacions llegides</span>` : "";
     document.getElementById("stats").innerHTML =
-      `<b>${ultimoTrenes.length}</b> trens en directe<br>dades fa <b>${edad}</b>${ni}${ping}`;
+      `<b>${ultimoTrenes.length}</b> trens en directe<br>dades fa <b>${edad}</b>${fgv}${ni}${ping}`;
   } catch (e) {
     document.getElementById("stats").textContent = "sense connexió amb el backend";
   } finally {

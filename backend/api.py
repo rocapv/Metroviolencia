@@ -307,6 +307,40 @@ def _ts_fin(con, snap_id: int) -> int | None:
         return None
 
 
+MIN_ESTACIONES = 72    # pasada «buena»: la mitad de las estaciones leídas (poller.MIN_SEGUIMENT)
+N_ESTACIONES = 144
+
+
+def _pasadas(con):
+    """(buena, última): la última pasada terminada con al menos MIN_ESTACIONES
+    leídas, y la última terminada sin más. Si FGV no contesta, la web sigue
+    enseñando la buena y avisa (06/11/2026: una pasada 0/144 vaciaba el mapa).
+    Bases sin `estaciones_ok`: las dos son la de `_ultima_pasada`."""
+    try:
+        filas = con.execute("SELECT id AS snapshot_id, ts, estaciones_ok FROM snapshots "
+                            "WHERE ts_fin IS NOT NULL ORDER BY id DESC LIMIT 60").fetchall()
+    except sqlite3.OperationalError:
+        r = _ultima_pasada(con)
+        return r, r
+    if not filas or con.execute("SELECT 1 FROM trenes LIMIT 1").fetchone() is None:
+        r = _ultima_pasada(con)
+        return r, r
+    buena = next((f for f in filas if f["estaciones_ok"] is None
+                  or f["estaciones_ok"] >= MIN_ESTACIONES), filas[0])
+    return buena, filas[0]
+
+
+def _degradat(buena, ultima) -> dict | None:
+    """Aviso si la última pasada es degradada (aunque no quede ninguna buena)."""
+    if ultima is None or "estaciones_ok" not in ultima.keys():
+        return None
+    ok = ultima["estaciones_ok"]
+    if ok is None or ok >= MIN_ESTACIONES:
+        return None
+    return {"ts": ultima["ts"], "llegides": ok, "de": N_ESTACIONES,
+            "mostrant": buena["ts"] if buena is not None and buena is not ultima else None}
+
+
 def _ultima_pasada(con) -> sqlite3.Row | None:
     """Última pasada TERMINADA del poller (snapshot_id, ts), tenga trenes o no.
     Antes era la última con filas en `trenes`: de noche, sin trenes, el reloj
@@ -328,8 +362,8 @@ def ultimo():
     _touch_client()
     con = _con()
     try:
-        row = _ultima_pasada(con)
-    except sqlite3.OperationalError:
+        _buena, row = _pasadas(con)     # la última, buena o no: el cliente vuelve a pedir
+    except sqlite3.OperationalError:    # /api/trains en cada pasada y se entera del aviso
         row = None
     xid = xat.ultim_id(con)
     if row is None:
@@ -377,9 +411,9 @@ def trains():
     # camino normal: el poller ya estimó y trackeó los trenes de la última pasada;
     # devolvemos esos, con su `id` persistente (mismo tren entre pulls).
     try:
-        row = _ultima_pasada(con)
+        row, ultima = _pasadas(con)
     except sqlite3.OperationalError:
-        row = None  # tabla aún no creada (poller viejo)
+        row = ultima = None  # tabla aún no creada (poller viejo)
     if row is not None:
         snap_id, ts = row["snapshot_id"], row["ts"]
         trs = con.execute(
@@ -402,9 +436,11 @@ def trains():
             except sqlite3.OperationalError:
                 t["retards"] = []
             t["retraso"] = t["retards"][0] if t["retards"] else None
+        ok = row["estaciones_ok"] if "estaciones_ok" in row.keys() else None
         return {"ts": ts, "ts_fin": _ts_fin(con, snap_id), "edad_seg": int(time.time()) - ts,
                 "srv_ms": int(time.time() * 1000),
-                "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap_id)}
+                "n": len(trenes), "trenes": trenes, "noinfo": _noinfo(con, snap_id),
+                "llegides": ok, "de": N_ESTACIONES, "degradat": _degradat(row, ultima)}
 
     # fallback (DB sin tracking aún): estima al vuelo, sin identidad persistente
     snap = _last_snapshot(con)
