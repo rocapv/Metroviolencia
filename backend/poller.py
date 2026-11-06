@@ -72,7 +72,9 @@ MARGEN_SERVICIO = 1200  # s: "hay servicio" si alguna hora de paso programada
 FORZAR_SERVICIO = 1800  # s: si una pasada centinela ve trenes, cadencia normal
                         # durante este tiempo (servicio especial o horario mal)
 CLIENTE_VENTANA = 250   # s: cliente "activo" si pidió datos hace menos de esto
-WORKERS = 12            # estaciones en paralelo. Barrido: ~62s en serie -> ~22s.
+WORKERS = 4             # estaciones en paralelo. 12 -> 4 el 06/11/2026: desde el 05/11 FGV
+                        # corta las ráfagas (12 conexiones a la vez: 2/144 leídas y la IP
+                        # medio bloqueada varios minutos; con 4: 141/144 en 32 s)
                         # El techo lo pone Metrovalencia (~7 req/s por IP): subir
                         # workers da rendimientos decrecientes (24->20s, 32->17s)
                         # a costa de castigar su servidor. 12 = buen equilibrio.
