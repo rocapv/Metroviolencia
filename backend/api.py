@@ -638,5 +638,31 @@ def enllac_barra(enllac: str):
     return RedirectResponse("../" + enllac, status_code=301)
 
 
+class _EnllacEscrit(Convertor):
+    """Qualsevol tros sense barra ni punt (els fitxers estàtics en porten)."""
+    regex = "[^/.]+"
+
+    def convert(self, value: str) -> str:
+        return value
+
+    def to_string(self, value: str) -> str:
+        return value
+
+
+register_url_convertor("enllac_escrit", _EnllacEscrit())
+
+
+@app.get("/{escrit:enllac_escrit}", include_in_schema=False)
+def enllac_escrit(escrit: str):
+    """Enllaç escrit a mà: metro.pr1.es/Burjassot o /Àngel Guimerà van a la
+    forma normal (/burjassot, /angelguimera) en lloc de donar un 404."""
+    s = historia.slug(escrit)
+    if not _slugs_cache:
+        _slugs_cache.update(historia.slugs(_net()))
+    if s and s != escrit and (s.isdigit() or s in _slugs_cache or (WEB / f"{s}.html").is_file()):
+        return RedirectResponse("./" + s, status_code=301)
+    return RedirectResponse("./", status_code=302)
+
+
 if WEB.exists():
     app.mount("/", StaticFiles(directory=str(WEB), html=True), name="web")

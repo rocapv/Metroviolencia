@@ -36,3 +36,15 @@ def test_sin_ninguna_buena_avisa_igual():
 def test_pasadas_antiguas_sin_recuento_son_buenas():
     b, u = _pasadas(_con([None, None]))
     assert b["snapshot_id"] == 2 and _degradat(b, u) is None
+
+
+def test_enllac_escrit_a_ma_va_a_la_forma_normal():
+    from fastapi.testclient import TestClient
+    from backend.api import app
+    c = TestClient(app, headers={"X-Forwarded-For": "192.168.1.50"})   # LAN (auth per IP)
+    r = c.get("/Burjassot", follow_redirects=False)
+    assert r.status_code == 301 and r.headers["location"] == "./burjassot"
+    r = c.get("/%C3%80ngel%20Guimer%C3%A0", follow_redirects=False)
+    assert r.status_code == 301 and r.headers["location"] == "./angelguimera"
+    assert c.get("/NoExisteix", follow_redirects=False).status_code == 302
+    assert c.get("/style.css").status_code == 200            # els estàtics no es toquen
