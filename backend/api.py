@@ -12,6 +12,7 @@ Endpoints:
     GET /api/ultimo    -> marca de la última pasada servida (+ último id del xat)
     GET /api/xat       -> mensajes: ?tipus=&lloc= (los de un lugar) o ?des_de=ID (feed)
     POST /api/xat      -> publica un mensaje {tipus, lloc, alias, text}
+    GET /api/intermodal -> ruta metro + bus entre dos puntos (?o=lat,lng&d=lat,lng); la calcula Bus
     GET /api/health    -> estado
 
 Sirve además el frontend estático de ../web en la raíz.
@@ -575,6 +576,33 @@ def registro(dia: str | None = None):
             "tipo_dia": {"metro": tipo_dia(dia, 1), "tranvia": tipo_dia(dia, 4),
                          "l10": tipo_dia(dia, 10)},
             "resumen": salidas.resumen(filas), "salidas": filas}
+
+
+# Ruta combinada metro + bus: la calcula Bus (bus.pr1.es, que también tiene los
+# buses y sus paradas); aquí solo se reenvía para que la web la pida a su origen.
+BUS_APIS = ("http://127.0.0.1:8791", "https://bus.pr1.es")
+
+
+@app.get("/api/intermodal")
+def intermodal(o: str, d: str):
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    q = urllib.parse.urlencode({"o": o, "d": d})
+    err = None
+    for base in BUS_APIS:
+        try:
+            req = urllib.request.Request(f"{base}/api/intermodal?{q}", headers={"User-Agent": "metro-intermodal"})
+            with urllib.request.urlopen(req, timeout=25) as r:
+                return JSONResponse(json.loads(r.read().decode("utf-8")))
+        except urllib.error.HTTPError as e:          # 400/503 de Bus: se pasa tal cual
+            try:
+                return JSONResponse(json.loads(e.read().decode("utf-8")), status_code=e.code)
+            except Exception:  # noqa: BLE001
+                err = e
+        except Exception as e:  # noqa: BLE001
+            err = e
+    return JSONResponse({"error": f"Bus no respon: {err}"}, status_code=503)
 
 
 @app.get("/api/health")

@@ -116,6 +116,15 @@ en ruta y calculadora de rutas con los trenes en vivo que hay que coger.
 | `GET /api/retards_ruta` | `dia` (YYYY-MM-DD, hoy por defecto) | Retrasos en ruta: resumen por línea de la última hora y del día (`n`, `mediana_s`, `tarde`) y `tarde_recientes` (pasos a >=3 min en los últimos 45 min) |
 | `GET /api/registro` | `dia` | Salidas programadas vs reales de las cabeceras: `tipo_dia`, `resumen` por estado y retraso mediano/medio, y una fila por salida |
 | `GET /api/health` | – | `snapshots` acumulados y `ultimo_ts` |
+| `GET /api/intermodal` | `o`, `d` (`lat,lng`) | Ruta **metro + bus** entre dos puntos del mapa. No la calcula este servidor: la reenvía a Bus (`127.0.0.1:8791`, o `bus.pr1.es` si no responde), que tiene las paradas y los buses; ver `backend/intermodal.py` del repo Bus |
+
+**Metro + Bus** (`web/intermodal.js`, el MISMO fichero que en el repo Bus, con
+`data-app="metro"`): el panel **Metro+Bus** pone origen y destino tocando el mapa
+(o con pulsación larga en cualquier momento) y pinta hasta tres alternativas
+(combinada, solo metro, solo bus) con la espera real de los paneles de FGV. El
+botón **⇄ Bus** abre `bus.pr1.es` en el mismo trozo de mapa y con la misma ruta
+(`#v=lat,lng,zoom&o=lat,lng&d=lat,lng`). En la leyenda, la fila **Només** deja
+a la vista una sola línea con un toque (otro toque o «Totes» lo devuelve todo).
 
 **Enlaces directos** (la misma página; la web lee el camino y la barra de
 direcciones sigue al popup abierto): `metro.pr1.es/burjassot` abre la estación
