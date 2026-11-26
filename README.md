@@ -300,3 +300,28 @@ Las posiciones son **estimaciones** a partir de los tiempos de llegada, no
 telemetría real; en los tranvías las ETAs de la fuente son de horario. Los
 retrasos tienen resolución de minuto y las cabeceras intermedias no se
 registran.
+
+## MetroViu en Google Play (`play/`)
+
+Variante pública de la app, **`es.metroviu.app`**, separada de la APK personal (`apk/`,
+`com.mdk.metroviolencia`), que no cambia.
+
+- Carga solo `https://metro.pr1.es/` (Let's Encrypt): sin LAN, sin HTTP, sin el cert
+  autofirmado de `home.pr1.es`. Si la web vuelve a exigir token (403), la app lo pide.
+- `targetSdk 36` (requisito de Play desde el 31/08/2026): de borde a borde con insets,
+  «atrás» predictivo (`OnBackInvokedCallback`), ubicación parada en `onPause`.
+- Enlaces a otros dominios se abren en el navegador; el puente `MetroviolenciaNatiu`
+  (ubicación nativa para `web/xat.js`) mantiene su nombre.
+- Icono propio y neutro (`play/make_icon.py`); `play/store/icon-512.png` es el de la ficha.
+
+Construir el AAB (sin Gradle: aapt2 proto + javac + d8 + bundletool + jarsigner):
+
+```sh
+ANDROID_SDK=~/android-sdk BUNDLETOOL=~/bundletool-all-1.18.3.jar \
+KEYSTORE=~/secrets/metroviu-upload.jks KS_PASS_FILE=~/secrets/metroviu-upload.pass \
+VERSION_CODE=2 VERSION_NAME=1.1 ./play/build_aab.sh
+```
+
+La **upload key nunca va al repo** (el script se niega si está dentro). Play firma la
+versión final con su propia clave (Play App Signing). Cada subida necesita un
+`VERSION_CODE` mayor que la anterior.

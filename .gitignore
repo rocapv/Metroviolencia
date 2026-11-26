@@ -30,3 +30,9 @@ data/open_until.txt
 data/tmp/
 data/ultima_purga.txt
 data/archivo/
+
+# MetroViu (Play)
+play/build/
+*.jks
+*.keystore
+*.pass
